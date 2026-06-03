@@ -106,8 +106,8 @@ public class MeetingService {
                 null,                 // vendorId
                 List.of(),            // dependsOn
                 null,                 // category
-                null                // ccnValue
-               );
+                null,                 // ccnValue
+                attachments);         // omitted from the payload when null/empty
         ActivityDto activity = activityServiceClient.createActivity(milestoneId, activityRequest);
         if (activity != null) {
             meeting.linkActivity(activity.id(), activity.projectId(), activity.milestoneId(),

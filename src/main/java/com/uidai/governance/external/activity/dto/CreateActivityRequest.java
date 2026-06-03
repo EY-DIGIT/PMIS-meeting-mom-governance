@@ -1,5 +1,6 @@
 package com.uidai.governance.external.activity.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -11,8 +12,10 @@ import java.util.List;
  * <p>Field shape mirrors the external Python project service. Null fields and
  * empty collections are sent as-is (the service accepts explicit nulls), so the
  * serialized body matches the documented payload.</p>
+ *
+ * <p>Exception: {@code attachments} is omitted entirely when null/empty, so a
+ * meeting created without attachments sends no {@code attachments} key.</p>
  */
-
 public record CreateActivityRequest(
         String name,
         String description,
@@ -31,6 +34,7 @@ public record CreateActivityRequest(
         String vendorId,
         List<String> dependsOn,
         String category,
-        BigDecimal ccnValue
+        BigDecimal ccnValue,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attachments
 ) {
 }
