@@ -1,0 +1,18 @@
+# Build output & local Maven bootstrap (build.ps1 downloads Maven into .maven)
+target/
+.maven/
+
+# VCS & IDE
+.git/
+.gitignore
+.idea/
+*.iml
+.vscode/
+
+# Logs & local run artifacts
+*.log
+run*.log
+
+# Docs/compose not needed in the build context
+docker-compose.yml
+README.md

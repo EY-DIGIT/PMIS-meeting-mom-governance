@@ -4,7 +4,8 @@ VALUES
     ('STEERING',   'Steering Committee', 'Strategic steering meetings',                 TRUE,  TRUE, 'system', now()),
     ('GOVERNANCE', 'Governance Review',  'Programme governance and oversight meetings', TRUE,  TRUE, 'system', now()),
     ('MIGRATION',  'Migration Review',   'Data / system migration meetings',            TRUE,  TRUE, 'system', now()),
-    ('ADHOC',      'Ad-hoc',             'Unscheduled / ad-hoc meetings',               FALSE, TRUE, 'system', now());
+    ('ADHOC',      'Ad-hoc',             'Unscheduled / ad-hoc meetings',               FALSE, TRUE, 'system', now())
+ON CONFLICT (code) DO NOTHING;
 
 -- Seed a default standardized MoM template (MEET-FR-05.1).
 INSERT INTO mom_template (name, description, structure, active, created_by, created_at)
@@ -15,4 +16,5 @@ VALUES (
     TRUE,
     'system',
     now()
-);
+)
+ON CONFLICT (name) DO NOTHING;
