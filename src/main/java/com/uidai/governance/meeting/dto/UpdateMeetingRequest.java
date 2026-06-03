@@ -13,6 +13,9 @@ import java.util.List;
 /**
  * Request to update an existing meeting's mutable fields. Updating a meeting does
  * not re-create its linked project activity, so no milestone is required here.
+ *
+ * <p>Attendance is captured per attendee via {@code isPresent} on each entry of
+ * {@code attendees} / {@code externalAttendees}.</p>
  */
 public record UpdateMeetingRequest(
         @NotBlank @Size(max = 250) String title,
@@ -22,6 +25,7 @@ public record UpdateMeetingRequest(
         @Size(max = 5000) String description,
         @Size(max = 1000) String meetingLink,
         @NotBlank String projectId,
-        @NotEmpty @Valid List<ParticipantDto> attendees
+        @NotEmpty @Valid List<ParticipantDto> attendees,
+        @Valid List<ExternalAttendeeDto> externalAttendees
 ) {
 }

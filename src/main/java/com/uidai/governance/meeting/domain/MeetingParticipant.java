@@ -11,9 +11,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 /**
- * A participant of a meeting. The {@code userId} references a user in the
- * external Python User service and is validated against authorized roles before
- * persistence (MEET-FR-03.2).
+ * A participant of a meeting. Internal attendees ({@code external=false}) have a
+ * {@code userId} validated against the external Python User service; external
+ * attendees ({@code external=true}) are guests not held in the User service and
+ * are stored as-is without validation.
  */
 @Entity
 @Table(name = "meeting_participant",
@@ -39,14 +40,25 @@ public class MeetingParticipant {
     @Column(name = "mandatory", nullable = false)
     private boolean mandatory = false;
 
+    /** True for external guests not held in the User service (not validated). */
+    @Column(name = "is_external", nullable = false)
+    private boolean external = false;
+
+    /** True when this attendee was recorded as present (set when updating the meeting). */
+    @Column(name = "is_present", nullable = false)
+    private boolean present = false;
+
     protected MeetingParticipant() {
     }
 
-    public MeetingParticipant(Meeting meeting, String userId, String participantRole, boolean mandatory) {
+    public MeetingParticipant(Meeting meeting, String userId, String participantRole,
+                              boolean mandatory, boolean external, boolean present) {
         this.meeting = meeting;
         this.userId = userId;
         this.participantRole = participantRole;
         this.mandatory = mandatory;
+        this.external = external;
+        this.present = present;
     }
 
     public Long getId() {
@@ -71,5 +83,13 @@ public class MeetingParticipant {
 
     public boolean isMandatory() {
         return mandatory;
+    }
+
+    public boolean isExternal() {
+        return external;
+    }
+
+    public boolean isPresent() {
+        return present;
     }
 }

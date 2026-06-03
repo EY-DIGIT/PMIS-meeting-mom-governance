@@ -12,7 +12,7 @@ UIDAI, PMC and MSP stakeholders.
 | Language       | Java 21                                 |
 | Framework      | Spring Boot 3.4                          |
 | Build          | Maven                                   |
-| Database       | PostgreSQL (H2 in tests)                |
+| Database       | PostgreSQL 16 (H2 in tests)             |
 | Migrations     | Flyway                                  |
 | API docs       | springdoc-openapi (Swagger UI)          |
 | External APIs  | User & Activity services (Python, HTTP) |
@@ -32,12 +32,20 @@ If you already have Maven installed you can use `mvn` directly instead.
 
 ### Database
 
-Set these environment variables (defaults shown):
+The module targets **PostgreSQL 16**. A pinned local instance is provided via
+Docker Compose (matches the application defaults below):
+
+```powershell
+docker compose up -d     # start PostgreSQL 16 on localhost:5432
+docker compose down      # stop (data kept); add -v to wipe the volume
+```
+
+Connection settings (environment variables, defaults shown):
 
 ```
-DB_URL=jdbc:postgresql://localhost:5432/uidai_mom
-DB_USERNAME=uidai
-DB_PASSWORD=uidai
+DB_URL=jdbc:postgresql://localhost:5432/postgres
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
 ```
 
 Flyway runs the schema migrations in `src/main/resources/db/migration` on startup.
@@ -64,16 +72,18 @@ ACTIVITY_SERVICE_URL=http://localhost:9002
 
 ## API surface (high level)
 
+All endpoints are served under the `/meetings` context-path.
+
 | Area                | Base path                          | Requirements              |
 |---------------------|------------------------------------|---------------------------|
-| Meeting types       | `/api/meeting-types`               | MEET-FR-02.4              |
-| Meetings            | `/api/meetings`                    | MEET-FR-01, FR-02, FR-03  |
-| Minutes of Meeting  | `/api/meetings/{id}/mom`           | MEET-FR-04, FR-05         |
-| Action items        | `/api/action-items`                | MEET-FR-04.2/.4/.5        |
-| MoM templates       | `/api/mom-templates`               | MEET-FR-05.1              |
-| Audit log           | `/api/audit-logs`                  | MEET-FR-01.3, FR-04.5     |
+| Meeting types       | `/meetings/meeting-types`          | MEET-FR-02.4              |
+| Meetings            | `/meetings/meetings`               | MEET-FR-01, FR-02, FR-03  |
+| Minutes of Meeting  | `/meetings/meetings/{id}/mom`      | MEET-FR-04, FR-05         |
+| Action items        | `/meetings/action-items`           | MEET-FR-04.2/.4/.5        |
+| MoM templates       | `/meetings/mom-templates`          | MEET-FR-05.1              |
+| Audit log           | `/meetings/audit-logs`             | MEET-FR-01.3, FR-04.5     |
 
-Swagger UI: `http://localhost:8080/api/swagger-ui.html`
+Swagger UI: `http://localhost:8080/meetings/docs`
 
 ## Requirements traceability
 

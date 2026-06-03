@@ -13,6 +13,7 @@ import com.uidai.governance.meeting.domain.Meeting;
 import com.uidai.governance.meeting.domain.MeetingParticipant;
 import com.uidai.governance.meeting.domain.MeetingStatus;
 import com.uidai.governance.meeting.dto.CreateMeetingRequest;
+import com.uidai.governance.meeting.dto.ExternalAttendeeDto;
 import com.uidai.governance.meeting.dto.MeetingResponse;
 import com.uidai.governance.meeting.dto.MeetingSummary;
 import com.uidai.governance.meeting.dto.ParticipantDto;
@@ -21,6 +22,7 @@ import com.uidai.governance.meeting.repository.MeetingRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -62,12 +64,10 @@ public class MeetingService {
     /** Records a meeting (MEET-FR-01.1) and creates its linked project activity. */
     @Transactional
     public MeetingResponse create(CreateMeetingRequest request) {
-        validateParticipants(request.attendees());
-
         Meeting meeting = new Meeting(request.title(), request.meetingDate(), request.startTime(),
                 request.endTime(), request.description(), request.meetingLink(), request.projectId());
-        applyParticipants(meeting, request.attendees());
-        createAndLinkActivity(meeting, request.milestoneId());
+        applyAttendees(meeting, request.attendees(), request.externalAttendees());
+        createAndLinkActivity(meeting, request.milestoneId(), request.attachments());
 
         Meeting saved = meetingRepository.save(meeting);
         auditLogService.record(AuditAction.MEETING_CREATED, ENTITY, saved.getId(),
@@ -80,7 +80,7 @@ public class MeetingService {
      * stores the returned identifiers on it. No-op when the activity service is
      * disabled. A failure aborts meeting creation (same transaction).
      */
-    private void createAndLinkActivity(Meeting meeting, String milestoneId) {
+    private void createAndLinkActivity(Meeting meeting, String milestoneId, List<String> attachments) {
         if (!activityServiceClient.isEnabled()) {
             return;
         }
@@ -106,7 +106,8 @@ public class MeetingService {
                 null,                 // vendorId
                 List.of(),            // dependsOn
                 null,                 // category
-                null);                // ccnValue
+                null,                 // ccnValue
+                attachments != null ? attachments : List.of());
         ActivityDto activity = activityServiceClient.createActivity(milestoneId, activityRequest);
         if (activity != null) {
             meeting.linkActivity(activity.id(), activity.projectId(), activity.milestoneId(),
@@ -121,8 +122,6 @@ public class MeetingService {
             throw new BusinessValidationException(
                     "Cannot edit a meeting in status " + meeting.getStatus());
         }
-        validateParticipants(request.attendees());
-
         meeting.setTitle(request.title());
         meeting.setMeetingDate(request.meetingDate());
         meeting.setStartTime(request.startTime());
@@ -130,8 +129,12 @@ public class MeetingService {
         meeting.setDescription(request.description());
         meeting.setMeetingLink(request.meetingLink());
         meeting.setProjectId(request.projectId());
+        // Remove the old attendees and flush the deletes before re-inserting, so
+        // re-adding the same (meeting_id, user_id) does not trip the unique
+        // constraint (Hibernate would otherwise order the inserts before the deletes).
         meeting.clearParticipants();
-        applyParticipants(meeting, request.attendees());
+        meetingRepository.saveAndFlush(meeting);
+        applyAttendees(meeting, request.attendees(), request.externalAttendees());
 
         Meeting saved = meetingRepository.save(meeting);
         auditLogService.record(AuditAction.MEETING_UPDATED, ENTITY, saved.getId(),
@@ -177,22 +180,44 @@ public class MeetingService {
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
     }
 
-    private void validateParticipants(List<ParticipantDto> participants) {
-        List<String> userIds = participants.stream().map(ParticipantDto::userId).distinct().toList();
-        if (userIds.size() != participants.size()) {
+    /**
+     * Validates internal attendees against the User service and applies both
+     * internal and external attendees to the meeting. External attendees are
+     * stored as-is and are not validated. Attendee ids must be unique across both
+     * lists (a single {@code (meeting, user_id)} per the table constraint).
+     */
+    private void applyAttendees(Meeting meeting, List<ParticipantDto> attendees,
+                                List<ExternalAttendeeDto> externalAttendees) {
+        List<ParticipantDto> internal = attendees == null ? List.of() : attendees;
+        List<ExternalAttendeeDto> external = externalAttendees == null ? List.of() : externalAttendees;
+
+        List<String> allIds = new ArrayList<>(internal.size() + external.size());
+        internal.forEach(p -> allIds.add(p.userId()));
+        external.forEach(e -> allIds.add(e.email()));
+        if (allIds.stream().distinct().count() != allIds.size()) {
             throw new BusinessValidationException("Duplicate attendee detected");
         }
+
+        validateInternalAttendees(internal);
+
+        for (ParticipantDto p : internal) {
+            meeting.addParticipant(new MeetingParticipant(meeting, p.userId(), p.participantRole(),
+                    p.mandatory(), false, p.isPresent()));
+        }
+        for (ExternalAttendeeDto e : external) {
+            meeting.addParticipant(new MeetingParticipant(meeting, e.email(), null, false, true, e.isPresent()));
+        }
+    }
+
+    private void validateInternalAttendees(List<ParticipantDto> internal) {
+        if (internal.isEmpty()) {
+            return;
+        }
+        List<String> userIds = internal.stream().map(ParticipantDto::userId).toList();
         RoleValidationResult result = userServiceClient.validateParticipants(userIds, PARTICIPANT_CONTEXT);
         if (!result.valid()) {
             throw new BusinessValidationException(
                     "Attendees are not valid / active users: " + result.invalidUserIds());
-        }
-    }
-
-    private void applyParticipants(Meeting meeting, List<ParticipantDto> participants) {
-        for (ParticipantDto p : participants) {
-            meeting.addParticipant(new MeetingParticipant(meeting, p.userId(),
-                    p.participantRole(), p.mandatory()));
         }
     }
 }

@@ -28,13 +28,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
-        log.warn("Resource not found [{} {}]: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        log.warn("Resource not found [{} {}] at {}: {}",
+                req.getMethod(), req.getRequestURI(), origin(ex), ex.getMessage());
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), req);
     }
 
     @ExceptionHandler(BusinessValidationException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessValidationException ex, HttpServletRequest req) {
-        log.warn("Business validation failed [{} {}]: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        log.warn("Business validation failed [{} {}] at {}: {}",
+                req.getMethod(), req.getRequestURI(), origin(ex), ex.getMessage());
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), req);
     }
 
@@ -46,7 +48,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UpstreamAuthException.class)
     public ResponseEntity<ErrorResponse> handleUpstreamAuth(UpstreamAuthException ex, HttpServletRequest req) {
-        log.warn("Upstream authentication failed [{} {}]: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        log.warn("Upstream authentication failed [{} {}] at {}: {}",
+                req.getMethod(), req.getRequestURI(), origin(ex), ex.getMessage());
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), req);
     }
 
@@ -90,5 +93,29 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String message, HttpServletRequest req) {
         return ResponseEntity.status(status)
                 .body(ErrorResponse.of(status.value(), status.getReasonPhrase(), message, req.getRequestURI()));
+    }
+
+    /**
+     * Returns the location where {@code ex} was thrown as
+     * {@code Class.method(File.java:line)} - the first application frame
+     * ({@code com.uidai.governance...}), falling back to the top stack frame.
+     * Lets WARN-level handlers (which don't print a stack trace) still point at
+     * the file and line that raised the exception.
+     */
+    private static String origin(Throwable ex) {
+        StackTraceElement[] stack = ex.getStackTrace();
+        if (stack.length == 0) {
+            return "unknown";
+        }
+        StackTraceElement frame = stack[0];
+        for (StackTraceElement el : stack) {
+            if (el.getClassName().startsWith("com.uidai.governance")) {
+                frame = el;
+                break;
+            }
+        }
+        String simpleClass = frame.getClassName().substring(frame.getClassName().lastIndexOf('.') + 1);
+        return "%s.%s(%s:%d)".formatted(simpleClass, frame.getMethodName(),
+                frame.getFileName(), frame.getLineNumber());
     }
 }

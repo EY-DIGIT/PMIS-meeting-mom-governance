@@ -17,6 +17,11 @@ import java.util.List;
  * <p>A project activity is created internally for the meeting (under
  * {@link #milestoneId()}) from these fields &mdash; no activity block is sent by
  * the caller.</p>
+ *
+ * <p>{@code attendees} are internal users validated against the User service;
+ * {@code externalAttendees} are optional external guests that are stored as-is
+ * and are not validated. {@code attachments} are forwarded as-is to the created
+ * project activity.</p>
  */
 public record CreateMeetingRequest(
         @NotBlank @Size(max = 250) String title,
@@ -27,6 +32,8 @@ public record CreateMeetingRequest(
         @Size(max = 1000) String meetingLink,
         @NotBlank String projectId,
         @NotBlank String milestoneId,
-        @NotEmpty @Valid List<ParticipantDto> attendees
+        @NotEmpty @Valid List<ParticipantDto> attendees,
+        @Valid List<ExternalAttendeeDto> externalAttendees,
+        List<String> attachments
 ) {
 }

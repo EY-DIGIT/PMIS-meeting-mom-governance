@@ -30,6 +30,7 @@ public record CreateActivityRequest(
         String vendorId,
         List<String> dependsOn,
         String category,
-        BigDecimal ccnValue
+        BigDecimal ccnValue,
+        List<String> attachments
 ) {
 }

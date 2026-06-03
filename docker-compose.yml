@@ -1,0 +1,25 @@
+# Local PostgreSQL 16 for the Meetings & MoM Governance module.
+# Matches the application's default datasource (localhost:5432, db/user/pass = postgres).
+#   docker compose up -d        # start PostgreSQL 16
+#   docker compose down         # stop (keeps data)
+#   docker compose down -v      # stop and wipe the data volume
+services:
+  postgres:
+    image: postgres:16
+    container_name: meetings-mom-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - meetings_mom_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  meetings_mom_pgdata:

@@ -18,8 +18,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * OpenAPI / Swagger UI definition for the Meetings &amp; MoM Governance Module.
  *
- * <p>Swagger UI is served at {@code /api/swagger-ui.html} and the raw OpenAPI
- * document at {@code /api/v3/api-docs} (the {@code /api} prefix comes from
+ * <p>Swagger UI is served at {@code /meetings/docs} and the raw OpenAPI document
+ * at {@code /meetings/v3/api-docs} (the {@code /meetings} prefix comes from
  * {@code server.servlet.context-path}).</p>
  */
 @Configuration
@@ -48,7 +48,7 @@ public class OpenApiConfig {
                                 services (e.g. for participant validation).""")
                         .contact(new Contact().name("UIDAI Governance Platform"))
                         .license(new License().name("Proprietary - UIDAI")))
-                .servers(List.of(new Server().url("/api").description("Default (context-path)")))
+                .servers(List.of(new Server().url("/meetings").description("Default (context-path)")))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME,
                         new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
