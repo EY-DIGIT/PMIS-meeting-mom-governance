@@ -12,6 +12,7 @@ import java.util.List;
  * empty collections are sent as-is (the service accepts explicit nulls), so the
  * serialized body matches the documented payload.</p>
  */
+
 public record CreateActivityRequest(
         String name,
         String description,
@@ -30,7 +31,6 @@ public record CreateActivityRequest(
         String vendorId,
         List<String> dependsOn,
         String category,
-        BigDecimal ccnValue,
-        List<String> attachments
+        BigDecimal ccnValue
 ) {
 }
