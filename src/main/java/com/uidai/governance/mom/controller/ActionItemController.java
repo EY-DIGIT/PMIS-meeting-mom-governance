@@ -15,12 +15,14 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -43,19 +45,22 @@ public class ActionItemController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get an action item")
-    public ActionItemResponse get(@PathVariable Long id) {
+    public ActionItemResponse get(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                  @PathVariable Long id) {
         return service.get(id);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update an action item")
-    public ActionItemResponse update(@PathVariable Long id, @Valid @RequestBody UpdateActionItemRequest request) {
+    public ActionItemResponse update(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                     @PathVariable Long id, @Valid @RequestBody UpdateActionItemRequest request) {
         return service.update(id, request);
     }
 
     @GetMapping
     @Operation(summary = "List action items assigned to a user")
     public PageResponse<ActionItemResponse> listByAssignee(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @RequestParam String assignee,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -68,13 +73,15 @@ public class ActionItemController {
     @PostMapping("/{id}/comments")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Add a comment (optionally a reply) to an action item")
-    public CommentDto addComment(@PathVariable Long id, @Valid @RequestBody AddCommentRequest request) {
+    public CommentDto addComment(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                 @PathVariable Long id, @Valid @RequestBody AddCommentRequest request) {
         return service.addComment(id, request);
     }
 
     @GetMapping("/{id}/comments")
     @Operation(summary = "List an action item's threaded comment history")
-    public List<CommentDto> listComments(@PathVariable Long id) {
+    public List<CommentDto> listComments(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                         @PathVariable Long id) {
         return service.listComments(id);
     }
 
@@ -83,14 +90,16 @@ public class ActionItemController {
     @PostMapping("/{id}/extensions")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Request a timeline extension with documented justification")
-    public ExtensionRequestResponse requestExtension(@PathVariable Long id,
+    public ExtensionRequestResponse requestExtension(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                                      @PathVariable Long id,
                                                       @Valid @RequestBody CreateExtensionRequest request) {
         return service.requestExtension(id, request);
     }
 
     @PostMapping("/extensions/{extensionId}/decision")
     @Operation(summary = "Approve or reject a timeline extension (designated authority)")
-    public ExtensionRequestResponse decideExtension(@PathVariable Long extensionId,
+    public ExtensionRequestResponse decideExtension(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                                    @PathVariable Long extensionId,
                                                     @Valid @RequestBody DecideExtensionRequest request) {
         return service.decideExtension(extensionId, request);
     }

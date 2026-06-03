@@ -6,7 +6,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +30,7 @@ public class AuditLogController {
     @GetMapping
     @Operation(summary = "List audit-trail entries for a given entity")
     public PageResponse<AuditLog> forEntity(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @RequestParam String entityType,
             @RequestParam Long entityId,
             @RequestParam(defaultValue = "0") int page,

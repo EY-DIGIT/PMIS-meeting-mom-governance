@@ -4,19 +4,23 @@ import com.uidai.governance.common.audit.AuditAction;
 import com.uidai.governance.common.audit.AuditLogService;
 import com.uidai.governance.common.exception.BusinessValidationException;
 import com.uidai.governance.common.exception.ResourceNotFoundException;
+import com.uidai.governance.external.activity.ActivityServiceClient;
+import com.uidai.governance.external.activity.dto.ActivityDto;
+import com.uidai.governance.external.activity.dto.CreateActivityRequest;
 import com.uidai.governance.external.user.UserServiceClient;
 import com.uidai.governance.external.user.dto.RoleValidationResult;
 import com.uidai.governance.meeting.domain.Meeting;
 import com.uidai.governance.meeting.domain.MeetingParticipant;
 import com.uidai.governance.meeting.domain.MeetingStatus;
-import com.uidai.governance.meeting.domain.MeetingType;
 import com.uidai.governance.meeting.dto.CreateMeetingRequest;
 import com.uidai.governance.meeting.dto.MeetingResponse;
 import com.uidai.governance.meeting.dto.MeetingSummary;
 import com.uidai.governance.meeting.dto.ParticipantDto;
 import com.uidai.governance.meeting.dto.UpdateMeetingRequest;
 import com.uidai.governance.meeting.repository.MeetingRepository;
-import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,43 +29,89 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Core meeting capture &amp; classification logic (MEET-FR-01 .. MEET-FR-03).
+ * Core meeting capture logic (MEET-FR-01). Recording a meeting also creates a
+ * linked project activity in the external project service, derived from the
+ * meeting's own fields.
  */
 @Service
 public class MeetingService {
 
     private static final String ENTITY = "Meeting";
+    /** Context label passed to participant validation (role rules are service-side). */
+    private static final String PARTICIPANT_CONTEXT = "MEETING_PARTICIPANT";
+    /** Default priority for the auto-created project activity. */
+    private static final String ACTIVITY_PRIORITY = "P3";
+    /** Meeting times are interpreted in IST when building the activity timestamps. */
+    private static final ZoneId MEETING_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final MeetingRepository meetingRepository;
-    private final MeetingTypeService meetingTypeService;
     private final UserServiceClient userServiceClient;
+    private final ActivityServiceClient activityServiceClient;
     private final AuditLogService auditLogService;
 
     public MeetingService(MeetingRepository meetingRepository,
-                          MeetingTypeService meetingTypeService,
                           UserServiceClient userServiceClient,
+                          ActivityServiceClient activityServiceClient,
                           AuditLogService auditLogService) {
         this.meetingRepository = meetingRepository;
-        this.meetingTypeService = meetingTypeService;
         this.userServiceClient = userServiceClient;
+        this.activityServiceClient = activityServiceClient;
         this.auditLogService = auditLogService;
     }
 
-    /** Records a meeting (MEET-FR-01.1) with classification and mandatory fields. */
+    /** Records a meeting (MEET-FR-01.1) and creates its linked project activity. */
     @Transactional
     public MeetingResponse create(CreateMeetingRequest request) {
-        MeetingType type = meetingTypeService.requireActiveByCode(request.meetingTypeCode());
-        validateParticipants(request.participants(), type.getCode());
+        validateParticipants(request.attendees());
 
-        Meeting meeting = new Meeting(request.title(), type, request.meetingDate(),
-                request.projectId(), request.stageId(), request.serviceProviderId(), request.agenda());
-        applyParticipants(meeting, request.participants());
+        Meeting meeting = new Meeting(request.title(), request.meetingDate(), request.startTime(),
+                request.endTime(), request.description(), request.meetingLink(), request.projectId());
+        applyParticipants(meeting, request.attendees());
+        createAndLinkActivity(meeting, request.milestoneId());
 
         Meeting saved = meetingRepository.save(meeting);
         auditLogService.record(AuditAction.MEETING_CREATED, ENTITY, saved.getId(),
-                "Meeting '%s' created (type=%s, project=%d)".formatted(
-                        saved.getTitle(), type.getCode(), saved.getProjectId()));
+                "Meeting '%s' created (project=%s)".formatted(saved.getTitle(), saved.getProjectId()));
         return MeetingResponse.from(saved);
+    }
+
+    /**
+     * Creates a project activity for the meeting from the meeting's own fields and
+     * stores the returned identifiers on it. No-op when the activity service is
+     * disabled. A failure aborts meeting creation (same transaction).
+     */
+    private void createAndLinkActivity(Meeting meeting, String milestoneId) {
+        if (!activityServiceClient.isEnabled()) {
+            return;
+        }
+        OffsetDateTime startDate = meeting.getMeetingDate().atTime(meeting.getStartTime())
+                .atZone(MEETING_ZONE).toOffsetDateTime();
+        OffsetDateTime endDate = meeting.getMeetingDate().atTime(meeting.getEndTime())
+                .atZone(MEETING_ZONE).toOffsetDateTime();
+        CreateActivityRequest activityRequest = new CreateActivityRequest(
+                meeting.getTitle(),
+                meeting.getDescription(),
+                startDate,
+                endDate,
+                null,                 // actualStartDate
+                null,                 // actualEndDate
+                null,                 // status
+                null,                 // activityStarted
+                ACTIVITY_PRIORITY,
+                null,                 // position
+                null,                 // ownerDivision
+                null,                 // ownerDivisionOther
+                List.of(),            // concernedDivision
+                null,                 // concernedDivisionOther
+                null,                 // vendorId
+                List.of(),            // dependsOn
+                null,                 // category
+                null);                // ccnValue
+        ActivityDto activity = activityServiceClient.createActivity(milestoneId, activityRequest);
+        if (activity != null) {
+            meeting.linkActivity(activity.id(), activity.projectId(), activity.milestoneId(),
+                    activity.name(), activity.description());
+        }
     }
 
     @Transactional
@@ -71,18 +121,17 @@ public class MeetingService {
             throw new BusinessValidationException(
                     "Cannot edit a meeting in status " + meeting.getStatus());
         }
-        MeetingType type = meetingTypeService.requireActiveByCode(request.meetingTypeCode());
-        validateParticipants(request.participants(), type.getCode());
+        validateParticipants(request.attendees());
 
         meeting.setTitle(request.title());
-        meeting.setMeetingType(type);
         meeting.setMeetingDate(request.meetingDate());
+        meeting.setStartTime(request.startTime());
+        meeting.setEndTime(request.endTime());
+        meeting.setDescription(request.description());
+        meeting.setMeetingLink(request.meetingLink());
         meeting.setProjectId(request.projectId());
-        meeting.setStageId(request.stageId());
-        meeting.setServiceProviderId(request.serviceProviderId());
-        meeting.setAgenda(request.agenda());
         meeting.clearParticipants();
-        applyParticipants(meeting, request.participants());
+        applyParticipants(meeting, request.attendees());
 
         Meeting saved = meetingRepository.save(meeting);
         auditLogService.record(AuditAction.MEETING_UPDATED, ENTITY, saved.getId(),
@@ -110,14 +159,12 @@ public class MeetingService {
         return MeetingResponse.from(getEntity(id));
     }
 
-    /** Filter &amp; report query across category, project, provider, status and date. */
+    /** Filter &amp; report query across project, status and date (MEET-FR-02.3). */
     @Transactional(readOnly = true)
-    public Page<MeetingSummary> search(String typeCode, Long projectId, Long serviceProviderId,
-                                       MeetingStatus status, Instant from, Instant to, Pageable pageable) {
+    public Page<MeetingSummary> search(String projectId, MeetingStatus status,
+                                       LocalDate from, LocalDate to, Pageable pageable) {
         Specification<Meeting> spec = Specification.allOf(
-                MeetingSpecifications.typeCode(typeCode),
                 MeetingSpecifications.project(projectId),
-                MeetingSpecifications.serviceProvider(serviceProviderId),
                 MeetingSpecifications.status(status),
                 MeetingSpecifications.from(from),
                 MeetingSpecifications.to(to));
@@ -130,15 +177,15 @@ public class MeetingService {
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
     }
 
-    private void validateParticipants(List<ParticipantDto> participants, String meetingTypeCode) {
+    private void validateParticipants(List<ParticipantDto> participants) {
         List<String> userIds = participants.stream().map(ParticipantDto::userId).distinct().toList();
         if (userIds.size() != participants.size()) {
-            throw new BusinessValidationException("Duplicate participant detected");
+            throw new BusinessValidationException("Duplicate attendee detected");
         }
-        RoleValidationResult result = userServiceClient.validateParticipants(userIds, meetingTypeCode);
+        RoleValidationResult result = userServiceClient.validateParticipants(userIds, PARTICIPANT_CONTEXT);
         if (!result.valid()) {
             throw new BusinessValidationException(
-                    "Participants not authorized for this meeting type: " + result.invalidUserIds());
+                    "Attendees are not valid / active users: " + result.invalidUserIds());
         }
     }
 

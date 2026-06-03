@@ -15,12 +15,14 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -45,37 +47,43 @@ public class MinutesOfMeetingController {
     @PostMapping("/meetings/{meetingId}/mom")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Record the MoM for a meeting, structured into decisions, actions and risks")
-    public MoMResponse create(@PathVariable Long meetingId, @Valid @RequestBody CreateMoMRequest request) {
+    public MoMResponse create(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                              @PathVariable Long meetingId, @Valid @RequestBody CreateMoMRequest request) {
         return momService.createForMeeting(meetingId, request);
     }
 
     @GetMapping("/meetings/{meetingId}/mom")
     @Operation(summary = "Get the MoM for a meeting")
-    public MoMResponse getByMeeting(@PathVariable Long meetingId) {
+    public MoMResponse getByMeeting(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                    @PathVariable Long meetingId) {
         return momService.getByMeeting(meetingId);
     }
 
     @GetMapping("/mom/{momId}")
     @Operation(summary = "Get a MoM by id")
-    public MoMResponse get(@PathVariable Long momId) {
+    public MoMResponse get(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                           @PathVariable Long momId) {
         return momService.get(momId);
     }
 
     @PutMapping("/mom/{momId}")
     @Operation(summary = "Update a MoM (only while not FINALIZED)")
-    public MoMResponse update(@PathVariable Long momId, @Valid @RequestBody UpdateMoMRequest request) {
+    public MoMResponse update(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                              @PathVariable Long momId, @Valid @RequestBody UpdateMoMRequest request) {
         return momService.update(momId, request);
     }
 
     @PutMapping("/mom/{momId}/status")
     @Operation(summary = "Transition MoM status (e.g. FINALIZE to add to the official record)")
-    public MoMResponse changeStatus(@PathVariable Long momId, @RequestParam MoMStatus status) {
+    public MoMResponse changeStatus(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                    @PathVariable Long momId, @RequestParam MoMStatus status) {
         return momService.changeStatus(momId, status);
     }
 
     @GetMapping("/mom/search")
     @Operation(summary = "Search MoMs by free text (MEET-FR-05.2)")
     public PageResponse<MoMResponse> search(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @RequestParam(required = false) String term,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -86,14 +94,16 @@ public class MinutesOfMeetingController {
     @PostMapping("/mom/{momId}/action-items")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Add an action item to a MoM")
-    public ActionItemResponse addActionItem(@PathVariable Long momId,
+    public ActionItemResponse addActionItem(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                            @PathVariable Long momId,
                                             @Valid @RequestBody ActionItemInput input) {
         return actionItemService.addToMom(momId, input);
     }
 
     @GetMapping("/mom/{momId}/action-items")
     @Operation(summary = "List action items for a MoM")
-    public List<ActionItemResponse> listActionItems(@PathVariable Long momId) {
+    public List<ActionItemResponse> listActionItems(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                                                    @PathVariable Long momId) {
         return actionItemService.listForMom(momId);
     }
 }

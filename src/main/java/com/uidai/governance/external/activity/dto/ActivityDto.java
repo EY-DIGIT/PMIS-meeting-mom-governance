@@ -13,6 +13,9 @@ import java.util.List;
  */
 public record ActivityDto(
         String id,
+        String displayCode,
+        String projectId,
+        String milestoneId,
         String name,
         String description,
         Instant startDate,

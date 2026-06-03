@@ -2,7 +2,8 @@ package com.uidai.governance.meeting.dto;
 
 import com.uidai.governance.meeting.domain.Meeting;
 import com.uidai.governance.meeting.domain.MeetingStatus;
-import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 /**
  * Lightweight meeting projection used in list / report responses
@@ -11,13 +12,14 @@ import java.time.Instant;
 public record MeetingSummary(
         Long id,
         String title,
-        String meetingTypeCode,
-        Instant meetingDate,
-        Long projectId,
+        LocalDate meetingDate,
+        LocalTime startTime,
+        LocalTime endTime,
+        String projectId,
         MeetingStatus status
 ) {
     public static MeetingSummary from(Meeting m) {
-        return new MeetingSummary(m.getId(), m.getTitle(), m.getMeetingType().getCode(),
-                m.getMeetingDate(), m.getProjectId(), m.getStatus());
+        return new MeetingSummary(m.getId(), m.getTitle(), m.getMeetingDate(),
+                m.getStartTime(), m.getEndTime(), m.getProjectId(), m.getStatus());
     }
 }

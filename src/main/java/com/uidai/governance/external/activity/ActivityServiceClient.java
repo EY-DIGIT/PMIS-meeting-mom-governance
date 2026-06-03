@@ -1,6 +1,7 @@
 package com.uidai.governance.external.activity;
 
 import com.uidai.governance.external.activity.dto.ActivityDto;
+import com.uidai.governance.external.activity.dto.CreateActivityRequest;
 import com.uidai.governance.external.activity.dto.UpdateActivityRequest;
 import java.util.Optional;
 
@@ -13,6 +14,20 @@ import java.util.Optional;
  * items in this module can reference.</p>
  */
 public interface ActivityServiceClient {
+
+    /**
+     * Creates a project activity under a milestone
+     * ({@code POST /projects/api/v3/milestones/{milestoneId}/activities/create}).
+     *
+     * <p>Called when a meeting is recorded, so the meeting is linked to a project
+     * activity. The caller's bearer token is forwarded from the inbound request
+     * {@code Authorization} header automatically. Returns the created activity
+     * (unwrapped from the service's {@code data} envelope).</p>
+     *
+     * @param milestoneId the milestone the activity is created under (URL path)
+     * @param request     the activity payload
+     */
+    ActivityDto createActivity(String milestoneId, CreateActivityRequest request);
 
     /**
      * Fetches a project activity by id

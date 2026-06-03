@@ -3,6 +3,8 @@ package com.uidai.governance.meeting.dto;
 import com.uidai.governance.meeting.domain.Meeting;
 import com.uidai.governance.meeting.domain.MeetingStatus;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 /**
@@ -11,15 +13,19 @@ import java.util.List;
 public record MeetingResponse(
         Long id,
         String title,
-        String meetingTypeCode,
-        String meetingTypeName,
-        Instant meetingDate,
-        Long projectId,
-        Long stageId,
-        Long serviceProviderId,
-        String agenda,
+        LocalDate meetingDate,
+        LocalTime startTime,
+        LocalTime endTime,
+        String description,
+        String meetingLink,
+        String projectId,
         MeetingStatus status,
-        List<ParticipantDto> participants,
+        String activityId,
+        String activityProjectId,
+        String activityMilestoneId,
+        String activityName,
+        String activityDescription,
+        List<ParticipantDto> attendees,
         String createdBy,
         Instant createdAt,
         String updatedBy,
@@ -29,14 +35,18 @@ public record MeetingResponse(
         return new MeetingResponse(
                 m.getId(),
                 m.getTitle(),
-                m.getMeetingType().getCode(),
-                m.getMeetingType().getDisplayName(),
                 m.getMeetingDate(),
+                m.getStartTime(),
+                m.getEndTime(),
+                m.getDescription(),
+                m.getMeetingLink(),
                 m.getProjectId(),
-                m.getStageId(),
-                m.getServiceProviderId(),
-                m.getAgenda(),
                 m.getStatus(),
+                m.getActivityId(),
+                m.getActivityProjectId(),
+                m.getActivityMilestoneId(),
+                m.getActivityName(),
+                m.getActivityDescription(),
                 m.getParticipants().stream().map(ParticipantDto::from).toList(),
                 m.getCreatedBy(),
                 m.getCreatedAt(),

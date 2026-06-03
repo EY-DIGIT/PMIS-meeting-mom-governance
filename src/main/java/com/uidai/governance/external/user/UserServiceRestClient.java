@@ -1,29 +1,34 @@
 package com.uidai.governance.external.user;
 
 import com.uidai.governance.common.exception.ExternalServiceException;
+import com.uidai.governance.common.exception.UpstreamAuthException;
+import com.uidai.governance.common.logging.JsonLogFormatter;
 import com.uidai.governance.config.ExternalApiProperties;
 import com.uidai.governance.config.RestClientConfig;
 import com.uidai.governance.external.user.dto.RoleValidationResult;
 import com.uidai.governance.external.user.dto.UserDto;
+import com.uidai.governance.external.user.dto.UserEnvelope;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
  * REST implementation of {@link UserServiceClient} backed by the external Python
- * User service.
+ * User service ({@code GET /users/api/v3/users/{id}}).
  *
- * <p><b>Awaiting API signature:</b> the request paths, query parameters and the
- * request/response body shapes below are placeholders. Once the Python API
- * signature is provided, update the {@code uri(...)} paths and the body mapping
- * (and the DTOs in {@code dto/}) to match. The surrounding error handling,
- * timeouts and the disabled-mode fallback do not need to change.</p>
+ * <p>Participants are validated by resolving each user and checking that the
+ * account exists and is {@code active} (MEET-FR-03.2). Authentication is handled
+ * transparently: the caller's bearer token is propagated from the inbound request
+ * {@code Authorization} header by {@link RestClientConfig}, so no token needs to
+ * be threaded through these methods.</p>
  *
  * <p>When {@code external.user-service.enabled=false} (e.g. local dev / tests),
  * the client returns permissive defaults so the module can run standalone.</p>
@@ -33,13 +38,21 @@ public class UserServiceRestClient implements UserServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(UserServiceRestClient.class);
 
+    private static final String EP_GET_USER = "get-user";
+    private static final String EP_LIST_USERS = "list-users";
+
     private final RestClient restClient;
+    private final ExternalApiProperties.ServiceConfig config;
+    private final JsonLogFormatter jsonLog;
     private final boolean enabled;
 
     public UserServiceRestClient(@Qualifier(RestClientConfig.USER_CLIENT) RestClient restClient,
-                                 ExternalApiProperties properties) {
+                                 ExternalApiProperties properties,
+                                 JsonLogFormatter jsonLog) {
         this.restClient = restClient;
-        this.enabled = properties.userService().enabled();
+        this.config = properties.userService();
+        this.jsonLog = jsonLog;
+        this.enabled = config.enabled();
     }
 
     @Override
@@ -48,20 +61,14 @@ public class UserServiceRestClient implements UserServiceClient {
             log.debug("User service disabled - treating {} participants as valid", userIds.size());
             return new RoleValidationResult(true, List.of());
         }
-        try {
-            // TODO: replace path/body with the Python User service signature.
-            // Assumed contract: POST /users/validate-roles
-            //   request : { "userIds": [...], "context": "<meetingType>" }
-            //   response: { "valid": bool, "invalidUserIds": [...] }
-            RoleValidationResult result = restClient.post()
-                    .uri("/users/validate-roles")
-                    .body(new ValidateRequest(userIds, meetingType))
-                    .retrieve()
-                    .body(RoleValidationResult.class);
-            return result != null ? result : new RoleValidationResult(false, userIds);
-        } catch (RestClientException ex) {
-            throw new ExternalServiceException("User service role validation failed", ex);
+        List<String> invalid = new ArrayList<>();
+        for (String userId : userIds) {
+            UserDto user = findUser(userId).orElse(null);
+            if (user == null || !user.active()) {
+                invalid.add(userId);
+            }
         }
+        return new RoleValidationResult(invalid.isEmpty(), invalid);
     }
 
     @Override
@@ -69,13 +76,26 @@ public class UserServiceRestClient implements UserServiceClient {
         if (!enabled) {
             return Optional.empty();
         }
+        String path = config.endpoint(EP_GET_USER);
+        log.info("Calling User service: GET {}{} request={}",
+                config.baseUrl(), path, jsonLog.toJson(Map.of("userId", userId)));
         try {
-            // TODO: replace with the Python User service signature. Assumed: GET /users/{id}
-            return Optional.ofNullable(restClient.get()
-                    .uri("/users/{id}", userId)
+            UserEnvelope envelope = restClient.get()
+                    .uri(path, userId)
                     .retrieve()
-                    .body(UserDto.class));
+                    .onStatus(status -> status.value() == 401 || status.value() == 403, (req, res) -> {
+                        throw new UpstreamAuthException("User service rejected the bearer token (HTTP "
+                                + res.getStatusCode().value()
+                                + "): the token is missing, expired or invalid.");
+                    })
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        // Unknown user (e.g. 404) -> treated as "not found" (empty) below.
+                    })
+                    .body(UserEnvelope.class);
+            return Optional.ofNullable(envelope).map(UserEnvelope::data);
         } catch (RestClientException ex) {
+            log.error("User service call failed: GET {}{} request={}",
+                    config.baseUrl(), path, jsonLog.toJson(Map.of("userId", userId)), ex);
             throw new ExternalServiceException("User service lookup failed for " + userId, ex);
         }
     }
@@ -85,18 +105,11 @@ public class UserServiceRestClient implements UserServiceClient {
         if (!enabled || userIds.isEmpty()) {
             return List.of();
         }
-        try {
-            // TODO: replace with the Python User service signature. Assumed: POST /users/batch
-            List<UserDto> users = restClient.post()
-                    .uri("/users/batch")
-                    .body(userIds)
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<List<UserDto>>() {
-                    });
-            return users != null ? users : List.of();
-        } catch (RestClientException ex) {
-            throw new ExternalServiceException("User service batch lookup failed", ex);
+        List<UserDto> users = new ArrayList<>(userIds.size());
+        for (String userId : userIds) {
+            findUser(userId).ifPresent(users::add);
         }
+        return users;
     }
 
     @Override
@@ -104,27 +117,28 @@ public class UserServiceRestClient implements UserServiceClient {
         if (!enabled) {
             return List.of();
         }
+        String path = config.endpoint(EP_LIST_USERS);
+        log.info("Calling User service: GET {}{} request={}", config.baseUrl(), path,
+                jsonLog.toJson(Map.of("offset", offset, "pageSize", pageSize, "includeDeleted", includeDeleted)));
         try {
             // GET /users?offset=&pageSize=&include_deleted=
-            // TODO: confirm the response envelope. This currently expects a bare
-            // JSON array of users; if the service wraps it (e.g. {"data":[...]},
-            // {"users":[...], "total":N}) introduce a wrapper record and map it.
+            // TODO: confirm the list response envelope shape with the User service
+            // team; this currently maps a bare array and is not yet exercised.
             List<UserDto> users = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/users")
+                    .uri(uriBuilder -> uriBuilder.path(path)
                             .queryParam("offset", offset)
                             .queryParam("pageSize", pageSize)
                             .queryParam("include_deleted", includeDeleted)
                             .build())
                     .retrieve()
-                    .body(new ParameterizedTypeReference<List<UserDto>>() {
+                    .body(new org.springframework.core.ParameterizedTypeReference<List<UserDto>>() {
                     });
             return users != null ? users : List.of();
         } catch (RestClientException ex) {
+            log.error("User service call failed: GET {}{} request={}", config.baseUrl(), path,
+                    jsonLog.toJson(Map.of("offset", offset, "pageSize", pageSize, "includeDeleted", includeDeleted)),
+                    ex);
             throw new ExternalServiceException("User service list failed", ex);
         }
-    }
-
-    /** Placeholder request body for participant validation. */
-    private record ValidateRequest(List<String> userIds, String context) {
     }
 }
