@@ -1,0 +1,10 @@
+target/
+# Project-local Maven downloaded by build.ps1
+.maven/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
