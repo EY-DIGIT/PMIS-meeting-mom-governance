@@ -32,13 +32,20 @@ public class MoMTemplateController {
         this.service = service;
     }
 
-    @GetMapping
+    @GetMapping("/getAll")
     @Operation(summary = "List active MoM templates")
     public List<MoMTemplateDto> list(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
         return service.listActive();
     }
 
-    @PostMapping
+    @GetMapping("/get/{id}")
+    @Operation(summary = "Get a MoM template by id")
+    public MoMTemplateDto get(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+                              @PathVariable Long id) {
+        return service.get(id);
+    }
+
+    @PostMapping("/create")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a standardized MoM template")
     public MoMTemplateDto create(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
@@ -46,7 +53,7 @@ public class MoMTemplateController {
         return service.create(dto);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/update/{id}")
     @Operation(summary = "Update a MoM template")
     public MoMTemplateDto update(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
                                  @PathVariable Long id, @Valid @RequestBody MoMTemplateDto dto) {

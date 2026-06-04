@@ -26,6 +26,11 @@ public class MoMTemplateService {
         return repository.findByActiveTrue().stream().map(MoMTemplateDto::from).toList();
     }
 
+    @Transactional(readOnly = true)
+    public MoMTemplateDto get(Long id) {
+        return MoMTemplateDto.from(requireById(id));
+    }
+
     @Transactional
     public MoMTemplateDto create(MoMTemplateDto dto) {
         if (repository.existsByName(dto.name())) {

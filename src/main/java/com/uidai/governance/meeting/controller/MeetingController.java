@@ -24,17 +24,20 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Meeting capture &amp; classification API (MEET-FR-01 .. MEET-FR-03).
+ *
+ * <p>Endpoints sit directly under the {@code /meetings} context-path
+ * ({@code /meetings/create}, {@code /meetings/getAll}, {@code /meetings/get/{id}},
+ * {@code /meetings/update/{id}}, {@code /meetings/updateStatus/{id}}).</p>
  */
 @RestController
-@RequestMapping("/meetings")
-@Tag(name = "Meetings", description = "Capture, classify and report on governance meetings")
+@Tag(name = "Meetings", description = "Create, update, search and report on governance meetings. "
+        + "All operations require an Authorization: Bearer token.")
 public class MeetingController {
 
     private final MeetingService service;
@@ -43,36 +46,45 @@ public class MeetingController {
         this.service = service;
     }
 
-    @PostMapping
+    @PostMapping("/create")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Record a meeting (MEET-FR-01.1) with type, date, participants and agenda")
+    @Operation(summary = "Create a meeting (MEET-FR-01.1)",
+            description = "Records a meeting (title, date, start/end time, description, link, project, "
+                    + "attendees and external attendees) and creates a linked project activity. Internal "
+                    + "attendees are validated against the User service; external attendees are stored as-is. "
+                    + "The activity's milestone is resolved automatically from the project's meetingMilestoneId "
+                    + "(no milestoneId is sent by the caller).")
     public MeetingResponse create(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
                                   @Valid @RequestBody CreateMeetingRequest request) {
         return service.create(request);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/get/{id}")
     @Operation(summary = "Get a meeting by id")
     public MeetingResponse get(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
                                @PathVariable Long id) {
         return service.get(id);
     }
 
-    @PutMapping("/{id}")
-    @Operation(summary = "Update a meeting")
+    @PutMapping("/update/{id}")
+    @Operation(summary = "Update a meeting",
+            description = "Updates the meeting's mutable fields and records attendance via the per-attendee "
+                    + "isPresent flag. Not allowed once the meeting is COMPLETED or CANCELLED.")
     public MeetingResponse update(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
                                   @PathVariable Long id, @Valid @RequestBody UpdateMeetingRequest request) {
         return service.update(id, request);
     }
 
-    @PutMapping("/{id}/status")
-    @Operation(summary = "Transition a meeting's status")
+    @PutMapping("/updateStatus/{id}")
+    @Operation(summary = "Transition a meeting's status",
+            description = "Moves the meeting to the given status (e.g. DRAFT, SCHEDULED, COMPLETED, CANCELLED) "
+                    + "when the transition is allowed.")
     public MeetingResponse changeStatus(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
                                         @PathVariable Long id, @RequestParam MeetingStatus status) {
         return service.changeStatus(id, status);
     }
 
-    @GetMapping
+    @GetMapping("/getAll")
     @Operation(summary = "Filter & report meetings by project, status and date (MEET-FR-02.3). "
             + "Pass 'ALL' (or omit) for projectId/status to skip that filter; from/to are optional.")
     public PageResponse<MeetingSummary> search(

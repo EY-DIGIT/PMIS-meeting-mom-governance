@@ -124,11 +124,14 @@ public class MinutesOfMeetingService {
         return MoMResponse.from(saved);
     }
 
-    /** Free-text MoM search (MEET-FR-05.2). */
+    /** Free-text MoM search (MEET-FR-05.2). A null/blank term returns all MoMs. */
     @Transactional(readOnly = true)
     public Page<MoMResponse> search(String term, Pageable pageable) {
         String normalized = (term == null || term.isBlank()) ? null : term.trim();
-        return repository.search(normalized, pageable).map(MoMResponse::from);
+        Page<MinutesOfMeeting> page = (normalized == null)
+                ? repository.findAll(pageable)
+                : repository.search(normalized, pageable);
+        return page.map(MoMResponse::from);
     }
 
     @Transactional(readOnly = true)
