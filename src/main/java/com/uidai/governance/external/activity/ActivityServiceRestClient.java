@@ -7,6 +7,8 @@ import com.uidai.governance.config.RestClientConfig;
 import com.uidai.governance.external.activity.dto.ActivityDto;
 import com.uidai.governance.external.activity.dto.ActivityEnvelope;
 import com.uidai.governance.external.activity.dto.CreateActivityRequest;
+import com.uidai.governance.external.activity.dto.ProjectDto;
+import com.uidai.governance.external.activity.dto.ProjectEnvelope;
 import com.uidai.governance.external.activity.dto.UpdateActivityRequest;
 import java.util.Map;
 import java.util.Optional;
@@ -42,6 +44,7 @@ public class ActivityServiceRestClient implements ActivityServiceClient {
     private static final String EP_CREATE_ACTIVITY = "create-activity";
     private static final String EP_GET_ACTIVITY = "get-activity";
     private static final String EP_UPDATE_ACTIVITY = "update-activity";
+    private static final String EP_GET_PROJECT = "get-project";
 
     private final RestClient restClient;
     private final ExternalApiProperties.ServiceConfig config;
@@ -109,6 +112,36 @@ public class ActivityServiceRestClient implements ActivityServiceClient {
             log.error("Activity service call failed: GET {}{} request={}",
                     config.baseUrl(), path, jsonLog.toJson(Map.of("activityId", activityId)), ex);
             throw new ExternalServiceException("Activity lookup failed for " + activityId, ex);
+        }
+    }
+
+    @Override
+    public Optional<ProjectDto> getProject(String projectId) {
+        if (!enabled) {
+            log.debug("Activity service disabled - skipping project lookup of {}", projectId);
+            return Optional.empty();
+        }
+        String path = config.endpoint(EP_GET_PROJECT);
+        log.info("Calling Activity service: GET {}{} request={}",
+                config.baseUrl(), path, jsonLog.toJson(Map.of("projectId", projectId)));
+        try {
+            ProjectEnvelope envelope = restClient.get()
+                    .uri(path, projectId)
+                    .retrieve()
+                    .onStatus(status -> status.value() == 401 || status.value() == 403, (req, res) -> {
+                        throw new com.uidai.governance.common.exception.UpstreamAuthException(
+                                "Project service rejected the bearer token (HTTP " + res.getStatusCode().value()
+                                        + "): the token is missing, expired or invalid.");
+                    })
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        // Unknown project (e.g. 404) -> treated as "not found" (empty) below.
+                    })
+                    .body(ProjectEnvelope.class);
+            return Optional.ofNullable(envelope).map(ProjectEnvelope::data);
+        } catch (RestClientException ex) {
+            log.error("Activity service call failed: GET {}{} request={}",
+                    config.baseUrl(), path, jsonLog.toJson(Map.of("projectId", projectId)), ex);
+            throw new ExternalServiceException("Project lookup failed for " + projectId, ex);
         }
     }
 

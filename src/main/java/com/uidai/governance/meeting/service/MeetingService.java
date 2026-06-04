@@ -7,6 +7,7 @@ import com.uidai.governance.common.exception.ResourceNotFoundException;
 import com.uidai.governance.external.activity.ActivityServiceClient;
 import com.uidai.governance.external.activity.dto.ActivityDto;
 import com.uidai.governance.external.activity.dto.CreateActivityRequest;
+import com.uidai.governance.external.activity.dto.ProjectDto;
 import com.uidai.governance.external.user.UserServiceClient;
 import com.uidai.governance.external.user.dto.RoleValidationResult;
 import com.uidai.governance.meeting.domain.Meeting;
@@ -67,7 +68,7 @@ public class MeetingService {
         Meeting meeting = new Meeting(request.title(), request.meetingDate(), request.startTime(),
                 request.endTime(), request.description(), request.meetingLink(), request.projectId());
         applyAttendees(meeting, request.attendees(), request.externalAttendees());
-        createAndLinkActivity(meeting, request.milestoneId(), request.attachments());
+        createAndLinkActivity(meeting, request.attachments());
 
         Meeting saved = meetingRepository.save(meeting);
         auditLogService.record(AuditAction.MEETING_CREATED, ENTITY, saved.getId(),
@@ -80,10 +81,17 @@ public class MeetingService {
      * stores the returned identifiers on it. No-op when the activity service is
      * disabled. A failure aborts meeting creation (same transaction).
      */
-    private void createAndLinkActivity(Meeting meeting, String milestoneId, List<String> attachments) {
+    private void createAndLinkActivity(Meeting meeting, List<String> attachments) {
         if (!activityServiceClient.isEnabled()) {
             return;
         }
+        // Resolve the milestone to create the activity under from the project's
+        // meetingMilestoneId (GET /projects/{projectId}).
+        String milestoneId = activityServiceClient.getProject(meeting.getProjectId())
+                .map(ProjectDto::meetingMilestoneId)
+                .filter(id -> id != null && !id.isBlank())
+                .orElseThrow(() -> new BusinessValidationException(
+                        "No meetingMilestoneId found for project " + meeting.getProjectId()));
         OffsetDateTime startDate = meeting.getMeetingDate().atTime(meeting.getStartTime())
                 .atZone(MEETING_ZONE).toOffsetDateTime();
         OffsetDateTime endDate = meeting.getMeetingDate().atTime(meeting.getEndTime())

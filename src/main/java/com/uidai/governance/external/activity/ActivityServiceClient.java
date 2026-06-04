@@ -2,6 +2,7 @@ package com.uidai.governance.external.activity;
 
 import com.uidai.governance.external.activity.dto.ActivityDto;
 import com.uidai.governance.external.activity.dto.CreateActivityRequest;
+import com.uidai.governance.external.activity.dto.ProjectDto;
 import com.uidai.governance.external.activity.dto.UpdateActivityRequest;
 import java.util.Optional;
 
@@ -34,6 +35,13 @@ public interface ActivityServiceClient {
      * ({@code GET /projects/api/v3/activities/{id}}). Returns empty if not found.
      */
     Optional<ActivityDto> getActivity(String activityId);
+
+    /**
+     * Fetches a project by id ({@code GET /projects/api/v3/projects/{id}}).
+     * Used at meeting creation to resolve the project's {@code meetingMilestoneId},
+     * under which the meeting's activity is created. Returns empty if not found.
+     */
+    Optional<ProjectDto> getProject(String projectId);
 
     /**
      * Partially updates a project activity

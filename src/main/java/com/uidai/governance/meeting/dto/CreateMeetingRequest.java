@@ -12,11 +12,11 @@ import java.util.List;
 
 /**
  * Request to create a meeting. Mandatory fields are enforced via validation:
- * title, date, start/end time, project, milestone and at least one attendee.
+ * title, date, start/end time, project and at least one attendee.
  *
- * <p>A project activity is created internally for the meeting (under
- * {@link #milestoneId()}) from these fields &mdash; no activity block is sent by
- * the caller.</p>
+ * <p>A project activity is created internally for the meeting &mdash; no activity
+ * block is sent by the caller, and the milestone is resolved automatically from
+ * the project's {@code meetingMilestoneId} (looked up by {@link #projectId()}).</p>
  *
  * <p>{@code attendees} are internal users validated against the User service;
  * {@code externalAttendees} are optional external guests that are stored as-is
@@ -31,7 +31,6 @@ public record CreateMeetingRequest(
         @Size(max = 5000) String description,
         @Size(max = 1000) String meetingLink,
         @NotBlank String projectId,
-        @NotBlank String milestoneId,
         @NotEmpty @Valid List<ParticipantDto> attendees,
         @Valid List<ExternalAttendeeDto> externalAttendees,
         List<String> attachments
