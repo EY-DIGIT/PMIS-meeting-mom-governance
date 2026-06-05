@@ -1,6 +1,10 @@
 -- Switch the meeting primary key to UUID and add a human-readable meeting code
 -- (MEET.1, MEET.2, ...). A bigint -> uuid conversion cannot preserve existing
 -- rows / FK links, so the (pre-release, test-only) meeting data is cleared first.
+TRUNCATE TABLE meeting, meeting_participant, minutes_of_meeting,
+               mom_decision, mom_risk, action_item, action_item_comment,
+               timeline_extension_request RESTART IDENTITY CASCADE;
+
 -- Audit entity_id must hold UUIDs (meeting) as well as bigints (MoM, action item).
 ALTER TABLE audit_log ALTER COLUMN entity_id SET DATA TYPE VARCHAR(64) USING entity_id::text;
 
