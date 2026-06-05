@@ -32,7 +32,7 @@ public class AuditLogController {
     public PageResponse<AuditLog> forEntity(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @RequestParam String entityType,
-            @RequestParam Long entityId,
+            @RequestParam String entityId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Page<AuditLog> result = auditLogService.forEntity(entityType, entityId,

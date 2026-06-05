@@ -7,12 +7,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Full meeting representation returned by the API.
  */
 public record MeetingResponse(
-        Long id,
+        UUID id,
+        String meetingCode,
         String title,
         LocalDate meetingDate,
         LocalTime startTime,
@@ -20,6 +22,8 @@ public record MeetingResponse(
         String description,
         String meetingLink,
         String projectId,
+        String projectCode,
+        String projectName,
         MeetingStatus status,
         String activityId,
         String activityProjectId,
@@ -40,6 +44,7 @@ public record MeetingResponse(
                 .filter(MeetingParticipant::isExternal).map(ExternalAttendeeDto::from).toList();
         return new MeetingResponse(
                 m.getId(),
+                m.getMeetingCode(),
                 m.getTitle(),
                 m.getMeetingDate(),
                 m.getStartTime(),
@@ -47,6 +52,8 @@ public record MeetingResponse(
                 m.getDescription(),
                 m.getMeetingLink(),
                 m.getProjectId(),
+                m.getProjectCode(),
+                m.getProjectName(),
                 m.getStatus(),
                 m.getActivityId(),
                 m.getActivityProjectId(),

@@ -4,11 +4,12 @@ import com.uidai.governance.mom.domain.MinutesOfMeeting;
 import com.uidai.governance.mom.domain.MoMStatus;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /** Full MoM representation including its structured sections (MEET-FR-04.2). */
 public record MoMResponse(
         Long id,
-        Long meetingId,
+        UUID meetingId,
         Long templateId,
         String title,
         String content,

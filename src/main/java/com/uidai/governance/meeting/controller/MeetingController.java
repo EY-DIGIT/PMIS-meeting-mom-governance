@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.Locale;
+import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -62,7 +63,7 @@ public class MeetingController {
     @GetMapping("/get/{id}")
     @Operation(summary = "Get a meeting by id")
     public MeetingResponse get(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
-                               @PathVariable Long id) {
+                               @PathVariable UUID id) {
         return service.get(id);
     }
 
@@ -71,7 +72,7 @@ public class MeetingController {
             description = "Updates the meeting's mutable fields and records attendance via the per-attendee "
                     + "isPresent flag. Not allowed once the meeting is COMPLETED or CANCELLED.")
     public MeetingResponse update(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
-                                  @PathVariable Long id, @Valid @RequestBody UpdateMeetingRequest request) {
+                                  @PathVariable UUID id, @Valid @RequestBody UpdateMeetingRequest request) {
         return service.update(id, request);
     }
 
@@ -80,7 +81,7 @@ public class MeetingController {
             description = "Moves the meeting to the given status (e.g. DRAFT, SCHEDULED, COMPLETED, CANCELLED) "
                     + "when the transition is allowed.")
     public MeetingResponse changeStatus(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
-                                        @PathVariable Long id, @RequestParam MeetingStatus status) {
+                                        @PathVariable UUID id, @RequestParam MeetingStatus status) {
         return service.changeStatus(id, status);
     }
 
@@ -95,7 +96,7 @@ public class MeetingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "meetingDate"));
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return PageResponse.from(
                 service.search(anyIfAll(projectId), parseStatus(status), from, to, pageable));
     }

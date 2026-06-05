@@ -23,14 +23,14 @@ public class AuditLogService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void record(AuditAction action, String entityType, Long entityId, String details) {
+    public void record(AuditAction action, String entityType, Object entityId, String details) {
         String actor = auditorAware.getCurrentAuditor().orElse("system");
-        repository.save(new AuditLog(action, entityType, entityId, actor, Instant.now(), details));
+        repository.save(new AuditLog(action, entityType, String.valueOf(entityId), actor, Instant.now(), details));
     }
 
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<AuditLog> forEntity(
-            String entityType, Long entityId, org.springframework.data.domain.Pageable pageable) {
+            String entityType, String entityId, org.springframework.data.domain.Pageable pageable) {
         return repository.findByEntityTypeAndEntityId(entityType, entityId, pageable);
     }
 }

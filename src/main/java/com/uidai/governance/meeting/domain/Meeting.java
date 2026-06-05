@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * A project-related meeting record (MEET-FR-01).
@@ -33,8 +34,12 @@ import java.util.List;
 public class Meeting extends AuditableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    /** Human-readable code (MEET.1, MEET.2, ...), assigned at creation. */
+    @Column(name = "meeting_code", length = 30)
+    private String meetingCode;
 
     @Column(name = "title", nullable = false, length = 250)
     private String title;
@@ -62,6 +67,14 @@ public class Meeting extends AuditableEntity {
     /** Link to the project this meeting belongs to. */
     @Column(name = "project_id", nullable = false, length = 64)
     private String projectId;
+
+    /** Project code as resolved from the external project service (display only). */
+    @Column(name = "project_code", length = 100)
+    private String projectCode;
+
+    /** Project name as resolved from the external project service (display only). */
+    @Column(name = "project_name", length = 250)
+    private String projectName;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
@@ -114,8 +127,16 @@ public class Meeting extends AuditableEntity {
         this.participants.clear();
     }
 
-    public Long getId() {
+    public UUID getId() {
         return id;
+    }
+
+    public String getMeetingCode() {
+        return meetingCode;
+    }
+
+    public void setMeetingCode(String meetingCode) {
+        this.meetingCode = meetingCode;
     }
 
     public String getTitle() {
@@ -172,6 +193,22 @@ public class Meeting extends AuditableEntity {
 
     public void setProjectId(String projectId) {
         this.projectId = projectId;
+    }
+
+    public String getProjectCode() {
+        return projectCode;
+    }
+
+    public void setProjectCode(String projectCode) {
+        this.projectCode = projectCode;
+    }
+
+    public String getProjectName() {
+        return projectName;
+    }
+
+    public void setProjectName(String projectName) {
+        this.projectName = projectName;
     }
 
     public MeetingStatus getStatus() {

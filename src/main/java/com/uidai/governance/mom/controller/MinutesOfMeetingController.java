@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
@@ -51,14 +52,14 @@ public class MinutesOfMeetingController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Record the MoM for a meeting, structured into decisions, actions and risks")
     public MoMResponse create(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
-                              @PathVariable Long meetingId, @Valid @RequestBody CreateMoMRequest request) {
+                              @PathVariable UUID meetingId, @Valid @RequestBody CreateMoMRequest request) {
         return momService.createForMeeting(meetingId, request);
     }
 
     @GetMapping("/getByMeeting/{meetingId}")
     @Operation(summary = "Get the MoM for a meeting")
     public MoMResponse getByMeeting(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
-                                    @PathVariable Long meetingId) {
+                                    @PathVariable UUID meetingId) {
         return momService.getByMeeting(meetingId);
     }
 

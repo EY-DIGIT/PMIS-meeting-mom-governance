@@ -22,6 +22,7 @@ import com.uidai.governance.mom.dto.RiskDto;
 import com.uidai.governance.mom.dto.UpdateMoMRequest;
 import com.uidai.governance.mom.repository.MinutesOfMeetingRepository;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -57,7 +58,7 @@ public class MinutesOfMeetingService {
     }
 
     @Transactional
-    public MoMResponse createForMeeting(Long meetingId, CreateMoMRequest request) {
+    public MoMResponse createForMeeting(UUID meetingId, CreateMoMRequest request) {
         Meeting meeting = meetingService.getEntity(meetingId);
         if (repository.existsByMeetingId(meetingId)) {
             throw new BusinessValidationException("A MoM already exists for meeting " + meetingId);
@@ -77,7 +78,7 @@ public class MinutesOfMeetingService {
 
         MinutesOfMeeting saved = repository.save(mom);
         auditLogService.record(AuditAction.MOM_CREATED, ENTITY, saved.getId(),
-                "MoM '%s' created for meeting %d".formatted(saved.getTitle(), meetingId));
+                "MoM '%s' created for meeting %s".formatted(saved.getTitle(), meetingId));
         return MoMResponse.from(saved);
     }
 
@@ -87,7 +88,7 @@ public class MinutesOfMeetingService {
     }
 
     @Transactional(readOnly = true)
-    public MoMResponse getByMeeting(Long meetingId) {
+    public MoMResponse getByMeeting(UUID meetingId) {
         return repository.findByMeetingId(meetingId)
                 .map(MoMResponse::from)
                 .orElseThrow(() -> new ResourceNotFoundException(

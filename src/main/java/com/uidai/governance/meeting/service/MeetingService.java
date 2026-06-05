@@ -24,7 +24,12 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -38,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class MeetingService {
+
+    private static final Logger log = LoggerFactory.getLogger(MeetingService.class);
 
     private static final String ENTITY = "Meeting";
     /** Context label passed to participant validation (role rules are service-side). */
@@ -67,8 +74,11 @@ public class MeetingService {
     public MeetingResponse create(CreateMeetingRequest request) {
         Meeting meeting = new Meeting(request.title(), request.meetingDate(), request.startTime(),
                 request.endTime(), request.description(), request.meetingLink(), request.projectId());
+        meeting.setMeetingCode("MEET." + meetingRepository.nextMeetingCodeSeq());
         applyAttendees(meeting, request.attendees(), request.externalAttendees());
-        createAndLinkActivity(meeting, request.attachments());
+        ProjectDto project = resolveProject(meeting.getProjectId());
+        applyProjectInfo(meeting, project);
+        createAndLinkActivity(meeting, project, request.attachments());
 
         Meeting saved = meetingRepository.save(meeting);
         auditLogService.record(AuditAction.MEETING_CREATED, ENTITY, saved.getId(),
@@ -76,22 +86,36 @@ public class MeetingService {
         return MeetingResponse.from(saved);
     }
 
+    /** Looks up the project (for its code/name/milestone); null when the activity service is off. */
+    private ProjectDto resolveProject(String projectId) {
+        if (!activityServiceClient.isEnabled()) {
+            return null;
+        }
+        return activityServiceClient.getProject(projectId).orElse(null);
+    }
+
+    /** Stores the project's display code and name on the meeting (when resolved). */
+    private void applyProjectInfo(Meeting meeting, ProjectDto project) {
+        if (project != null) {
+            meeting.setProjectCode(project.projectCode());
+            meeting.setProjectName(project.name());
+        }
+    }
+
     /**
      * Creates a project activity for the meeting from the meeting's own fields and
-     * stores the returned identifiers on it. No-op when the activity service is
-     * disabled. A failure aborts meeting creation (same transaction).
+     * stores the returned identifiers on it, under the project's meetingMilestoneId.
+     * No-op when the activity service is disabled. A failure aborts the transaction.
      */
-    private void createAndLinkActivity(Meeting meeting, List<String> attachments) {
+    private void createAndLinkActivity(Meeting meeting, ProjectDto project, List<String> attachments) {
         if (!activityServiceClient.isEnabled()) {
             return;
         }
-        // Resolve the milestone to create the activity under from the project's
-        // meetingMilestoneId (GET /projects/{projectId}).
-        String milestoneId = activityServiceClient.getProject(meeting.getProjectId())
-                .map(ProjectDto::meetingMilestoneId)
-                .filter(id -> id != null && !id.isBlank())
-                .orElseThrow(() -> new BusinessValidationException(
-                        "No meetingMilestoneId found for project " + meeting.getProjectId()));
+        String milestoneId = project == null ? null : project.meetingMilestoneId();
+        if (milestoneId == null || milestoneId.isBlank()) {
+            throw new BusinessValidationException(
+                    "No meetingMilestoneId found for project " + meeting.getProjectId());
+        }
         OffsetDateTime startDate = meeting.getMeetingDate().atTime(meeting.getStartTime())
                 .atZone(MEETING_ZONE).toOffsetDateTime();
         OffsetDateTime endDate = meeting.getMeetingDate().atTime(meeting.getEndTime())
@@ -124,7 +148,7 @@ public class MeetingService {
     }
 
     @Transactional
-    public MeetingResponse update(Long id, UpdateMeetingRequest request) {
+    public MeetingResponse update(UUID id, UpdateMeetingRequest request) {
         Meeting meeting = getEntity(id);
         if (meeting.getStatus() == MeetingStatus.COMPLETED || meeting.getStatus() == MeetingStatus.CANCELLED) {
             throw new BusinessValidationException(
@@ -137,6 +161,7 @@ public class MeetingService {
         meeting.setDescription(request.description());
         meeting.setMeetingLink(request.meetingLink());
         meeting.setProjectId(request.projectId());
+        applyProjectInfo(meeting, resolveProject(request.projectId()));
         // Remove the old attendees and flush the deletes before re-inserting, so
         // re-adding the same (meeting_id, user_id) does not trip the unique
         // constraint (Hibernate would otherwise order the inserts before the deletes).
@@ -151,7 +176,7 @@ public class MeetingService {
     }
 
     @Transactional
-    public MeetingResponse changeStatus(Long id, MeetingStatus target) {
+    public MeetingResponse changeStatus(UUID id, MeetingStatus target) {
         Meeting meeting = getEntity(id);
         if (!meeting.getStatus().canTransitionTo(target)) {
             throw new BusinessValidationException(
@@ -165,13 +190,15 @@ public class MeetingService {
         return MeetingResponse.from(saved);
     }
 
-    @Transactional(readOnly = true)
-    public MeetingResponse get(Long id) {
-        return MeetingResponse.from(getEntity(id));
+    @Transactional
+    public MeetingResponse get(UUID id) {
+        Meeting meeting = getEntity(id);
+        backfillProjectInfo(List.of(meeting));
+        return MeetingResponse.from(meeting);
     }
 
     /** Filter &amp; report query across project, status and date (MEET-FR-02.3). */
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<MeetingSummary> search(String projectId, MeetingStatus status,
                                        LocalDate from, LocalDate to, Pageable pageable) {
         Specification<Meeting> spec = Specification.allOf(
@@ -179,11 +206,45 @@ public class MeetingService {
                 MeetingSpecifications.status(status),
                 MeetingSpecifications.from(from),
                 MeetingSpecifications.to(to));
-        return meetingRepository.findAll(spec, pageable).map(MeetingSummary::from);
+        Page<Meeting> page = meetingRepository.findAll(spec, pageable);
+        backfillProjectInfo(page.getContent());
+        return page.map(MeetingSummary::from);
+    }
+
+    /**
+     * Fills in project code/name for meetings missing them by resolving the project
+     * once per distinct id. Best-effort: a project-service failure is logged and
+     * leaves the values null rather than failing the read. Resolved values are
+     * persisted (these methods run in a writable transaction).
+     */
+    private void backfillProjectInfo(List<Meeting> meetings) {
+        if (!activityServiceClient.isEnabled()) {
+            return;
+        }
+        Map<String, ProjectDto> byProject = new HashMap<>();
+        for (Meeting meeting : meetings) {
+            if (meeting.getProjectCode() != null && meeting.getProjectName() != null) {
+                continue;
+            }
+            if (!byProject.containsKey(meeting.getProjectId())) {
+                byProject.put(meeting.getProjectId(), safeResolveProject(meeting.getProjectId()));
+            }
+            applyProjectInfo(meeting, byProject.get(meeting.getProjectId()));
+        }
+    }
+
+    /** Resolves a project, swallowing errors so reads never fail on a project-service issue. */
+    private ProjectDto safeResolveProject(String projectId) {
+        try {
+            return resolveProject(projectId);
+        } catch (RuntimeException ex) {
+            log.warn("Could not resolve project {} for code/name backfill: {}", projectId, ex.getMessage());
+            return null;
+        }
     }
 
     @Transactional(readOnly = true)
-    public Meeting getEntity(Long id) {
+    public Meeting getEntity(UUID id) {
         return meetingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(ENTITY, id));
     }

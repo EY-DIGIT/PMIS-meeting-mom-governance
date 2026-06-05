@@ -34,8 +34,8 @@ public class AuditLog {
     @Column(name = "entity_type", nullable = false, length = 50)
     private String entityType;
 
-    @Column(name = "entity_id", nullable = false)
-    private Long entityId;
+    @Column(name = "entity_id", nullable = false, length = 64)
+    private String entityId;
 
     @Column(name = "performed_by", nullable = false, length = 100)
     private String performedBy;
@@ -49,7 +49,7 @@ public class AuditLog {
     protected AuditLog() {
     }
 
-    public AuditLog(AuditAction action, String entityType, Long entityId,
+    public AuditLog(AuditAction action, String entityType, String entityId,
                     String performedBy, Instant performedAt, String details) {
         this.action = action;
         this.entityType = entityType;
@@ -71,7 +71,7 @@ public class AuditLog {
         return entityType;
     }
 
-    public Long getEntityId() {
+    public String getEntityId() {
         return entityId;
     }
 
