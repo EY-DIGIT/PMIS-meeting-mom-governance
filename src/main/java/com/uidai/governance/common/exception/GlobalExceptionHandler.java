@@ -6,6 +6,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -44,6 +45,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExternal(ExternalServiceException ex, HttpServletRequest req) {
         log.error("External service error [{} {}]: {}", req.getMethod(), req.getRequestURI(), ex.getMessage(), ex);
         return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(ExternalApiException.class)
+    public ResponseEntity<String> handleExternalApi(ExternalApiException ex, HttpServletRequest req) {
+        log.warn("External API error [{} {}]: status={} body={}",
+                req.getMethod(), req.getRequestURI(), ex.status(), ex.body());
+        HttpStatus status = HttpStatus.resolve(ex.status());
+        String body = (ex.body() == null || ex.body().isBlank()) ? "{}" : ex.body();
+        return ResponseEntity.status(status != null ? status : HttpStatus.BAD_GATEWAY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     @ExceptionHandler(UpstreamAuthException.class)

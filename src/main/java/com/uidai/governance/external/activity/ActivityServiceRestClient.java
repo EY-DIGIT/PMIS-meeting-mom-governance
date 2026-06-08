@@ -1,5 +1,6 @@
 package com.uidai.governance.external.activity;
 
+import com.uidai.governance.common.exception.ExternalApiException;
 import com.uidai.governance.common.exception.ExternalServiceException;
 import com.uidai.governance.common.logging.JsonLogFormatter;
 import com.uidai.governance.config.ExternalApiProperties;
@@ -18,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -85,8 +87,7 @@ public class ActivityServiceRestClient implements ActivityServiceClient {
         } catch (RestClientException ex) {
             log.error("Activity service call failed: POST {}{} [milestoneId={}] request={}",
                     config.baseUrl(), path, milestoneId, jsonLog.toJson(request), ex);
-            throw new ExternalServiceException(
-                    "Activity creation failed under milestone " + milestoneId, ex);
+            throw translate(ex, "Activity creation failed under milestone " + milestoneId);
         }
     }
 
@@ -111,7 +112,7 @@ public class ActivityServiceRestClient implements ActivityServiceClient {
         } catch (RestClientException ex) {
             log.error("Activity service call failed: GET {}{} request={}",
                     config.baseUrl(), path, jsonLog.toJson(Map.of("activityId", activityId)), ex);
-            throw new ExternalServiceException("Activity lookup failed for " + activityId, ex);
+            throw translate(ex, "Activity lookup failed for " + activityId);
         }
     }
 
@@ -128,20 +129,13 @@ public class ActivityServiceRestClient implements ActivityServiceClient {
             ProjectEnvelope envelope = restClient.get()
                     .uri(path, projectId)
                     .retrieve()
-                    .onStatus(status -> status.value() == 401 || status.value() == 403, (req, res) -> {
-                        throw new com.uidai.governance.common.exception.UpstreamAuthException(
-                                "Project service rejected the bearer token (HTTP " + res.getStatusCode().value()
-                                        + "): the token is missing, expired or invalid.");
-                    })
-                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        // Unknown project (e.g. 404) -> treated as "not found" (empty) below.
-                    })
                     .body(ProjectEnvelope.class);
             return Optional.ofNullable(envelope).map(ProjectEnvelope::data);
         } catch (RestClientException ex) {
+            // Surface the project service's own error (status + body) to the caller.
             log.error("Activity service call failed: GET {}{} request={}",
                     config.baseUrl(), path, jsonLog.toJson(Map.of("projectId", projectId)), ex);
-            throw new ExternalServiceException("Project lookup failed for " + projectId, ex);
+            throw translate(ex, "Project lookup failed for " + projectId);
         }
     }
 
@@ -163,12 +157,25 @@ public class ActivityServiceRestClient implements ActivityServiceClient {
         } catch (RestClientException ex) {
             log.error("Activity service call failed: PATCH {}{} [activityId={}] request={}",
                     config.baseUrl(), path, activityId, jsonLog.toJson(request), ex);
-            throw new ExternalServiceException("Activity update failed for " + activityId, ex);
+            throw translate(ex, "Activity update failed for " + activityId);
         }
     }
 
     @Override
     public boolean isEnabled() {
         return enabled;
+    }
+
+    /**
+     * Converts a RestClient failure into either an {@link ExternalApiException}
+     * (carrying the external service's HTTP status and body, so it can be surfaced
+     * to the caller as-is) for an error response, or an {@link ExternalServiceException}
+     * (502) for connectivity/transport failures with no HTTP response.
+     */
+    private RuntimeException translate(RestClientException ex, String fallbackMessage) {
+        if (ex instanceof HttpStatusCodeException httpEx) {
+            return new ExternalApiException(httpEx.getStatusCode().value(), httpEx.getResponseBodyAsString());
+        }
+        return new ExternalServiceException(fallbackMessage, ex);
     }
 }

@@ -132,9 +132,7 @@ public class MeetingService {
                 ACTIVITY_PRIORITY,
                 null,                 // position
                 null,                 // ownerDivision
-                null,                 // ownerDivisionOther
                 List.of(),            // concernedDivision
-                null,                 // concernedDivisionOther
                 null,                 // vendorId
                 List.of(),            // dependsOn
                 null,                 // category
