@@ -1,5 +1,6 @@
 package com.uidai.governance.meeting.dto;
 
+import com.uidai.governance.external.activity.dto.AttachmentPayload;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -34,7 +35,8 @@ public record CreateMeetingRequest(
                 example = "dbbff5f8-a814-4c2e-9a86-82a8f83bdea9") String projectId,
         @NotEmpty @Valid List<ParticipantDto> attendees,
         @Valid List<ExternalAttendeeDto> externalAttendees,
-        @Schema(description = "Attachment references; forwarded to the activity only when non-empty")
-        List<String> attachments
+        @Valid @Schema(description = "File attachments {filename, contentType, content(base64, no data: prefix)}; "
+                + "forwarded to the activity only when non-empty")
+        List<AttachmentPayload> attachments
 ) {
 }

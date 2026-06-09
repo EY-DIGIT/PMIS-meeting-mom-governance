@@ -1,5 +1,6 @@
 package com.uidai.governance.meeting.dto;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.uidai.governance.meeting.domain.Meeting;
 import com.uidai.governance.meeting.domain.MeetingParticipant;
 import com.uidai.governance.meeting.domain.MeetingStatus;
@@ -30,6 +31,7 @@ public record MeetingResponse(
         String activityMilestoneId,
         String activityName,
         String activityDescription,
+        JsonNode attachments,
         List<ParticipantDto> attendees,
         List<ExternalAttendeeDto> externalAttendees,
         String createdBy,
@@ -60,6 +62,7 @@ public record MeetingResponse(
                 m.getActivityMilestoneId(),
                 m.getActivityName(),
                 m.getActivityDescription(),
+                m.getAttachments(),
                 attendees,
                 externalAttendees,
                 m.getCreatedBy(),

@@ -35,6 +35,6 @@ public record CreateActivityRequest(
         List<String> dependsOn,
         String category,
         BigDecimal ccnValue,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attachments
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<AttachmentPayload> attachments
 ) {
 }

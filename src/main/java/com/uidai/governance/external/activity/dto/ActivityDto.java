@@ -1,15 +1,17 @@
 package com.uidai.governance.external.activity.dto;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.List;
 
 /**
  * A project activity as returned by the external Python project service
- * ({@code GET /projects/api/v3/activities/{id}}).
+ * ({@code GET /projects/api/v3/activities/{id}} and the create endpoint).
  *
  * <p>Unknown fields returned by the service are ignored (Jackson is configured
  * to not fail on unknown properties), so the service can evolve without breaking
- * this client.</p>
+ * this client. {@code attachments} is captured verbatim (the stored attachment
+ * metadata PMIS returns: id, filename, url, etc.).</p>
  */
 public record ActivityDto(
         String id,
@@ -31,6 +33,8 @@ public record ActivityDto(
         String concernedDivisionOther,
         String vendorId,
         Integer position,
-        List<String> dependsOn
+        List<String> dependsOn,
+        JsonNode attachments,
+        JsonNode comment
 ) {
 }

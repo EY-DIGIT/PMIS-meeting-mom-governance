@@ -5,7 +5,9 @@ import com.uidai.governance.common.audit.AuditLogService;
 import com.uidai.governance.common.exception.BusinessValidationException;
 import com.uidai.governance.common.exception.ResourceNotFoundException;
 import com.uidai.governance.external.activity.ActivityServiceClient;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.uidai.governance.external.activity.dto.ActivityDto;
+import com.uidai.governance.external.activity.dto.AttachmentPayload;
 import com.uidai.governance.external.activity.dto.CreateActivityRequest;
 import com.uidai.governance.external.activity.dto.ProjectDto;
 import com.uidai.governance.external.user.UserServiceClient;
@@ -107,7 +109,7 @@ public class MeetingService {
      * stores the returned identifiers on it, under the project's meetingMilestoneId.
      * No-op when the activity service is disabled. A failure aborts the transaction.
      */
-    private void createAndLinkActivity(Meeting meeting, ProjectDto project, List<String> attachments) {
+    private void createAndLinkActivity(Meeting meeting, ProjectDto project, List<AttachmentPayload> attachments) {
         if (!activityServiceClient.isEnabled()) {
             return;
         }
@@ -142,7 +144,51 @@ public class MeetingService {
         if (activity != null) {
             meeting.linkActivity(activity.id(), activity.projectId(), activity.milestoneId(),
                     activity.name(), activity.description());
+            meeting.setAttachments(resolveActivityAttachments(activity, attachments));
         }
+    }
+
+    /**
+     * Attachments to store on the meeting: those echoed by the activity-create
+     * response, or - if files were sent but the create response did not echo them -
+     * fetched from {@code GET /activities/{id}}. Best-effort: a failure to fetch
+     * leaves attachments unset rather than aborting the (already created) activity.
+     */
+    private JsonNode resolveActivityAttachments(ActivityDto activity, List<AttachmentPayload> sent) {
+        JsonNode stored = attachmentsOf(activity);
+        boolean hasStored = stored != null && !stored.isEmpty();
+        boolean sentFiles = sent != null && !sent.isEmpty();
+        if (!hasStored && sentFiles && activity.id() != null) {
+            try {
+                stored = activityServiceClient.getActivity(activity.id())
+                        .map(this::attachmentsOf).orElse(null);
+            } catch (RuntimeException ex) {
+                log.warn("Could not fetch attachments for activity {}: {}", activity.id(), ex.getMessage());
+            }
+        }
+        return stored;
+    }
+
+    /**
+     * Extracts the attachment array from an activity. PMIS nests it under the
+     * activity's comment ({@code data.comment.attachments}); a top-level
+     * {@code attachments} node is used as a fallback if present.
+     */
+    private JsonNode attachmentsOf(ActivityDto activity) {
+        if (activity == null) {
+            return null;
+        }
+        if (activity.attachments() != null && !activity.attachments().isEmpty()) {
+            return activity.attachments();
+        }
+        JsonNode comment = activity.comment();
+        if (comment != null) {
+            JsonNode att = comment.get("attachments");
+            if (att != null && !att.isNull()) {
+                return att;
+            }
+        }
+        return null;
     }
 
     @Transactional

@@ -62,6 +62,7 @@ public class ActivityServiceRestClient implements ActivityServiceClient {
         this.enabled = config.enabled();
     }
 
+    @SuppressWarnings("null")
     @Override
     public ActivityDto createActivity(String milestoneId, CreateActivityRequest request) {
         if (!enabled) {

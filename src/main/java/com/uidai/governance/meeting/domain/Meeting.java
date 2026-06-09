@@ -1,5 +1,6 @@
 package com.uidai.governance.meeting.domain;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.uidai.governance.common.audit.AuditableEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -12,6 +13,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -99,6 +102,11 @@ public class Meeting extends AuditableEntity {
     /** Description of the linked activity as recorded in the external service. */
     @Column(name = "activity_description", length = 5000)
     private String activityDescription;
+
+    /** Attachment metadata as returned by the activity-create API (id, filename, url, ...). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attachments", columnDefinition = "jsonb")
+    private JsonNode attachments;
 
     @OneToMany(mappedBy = "meeting", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MeetingParticipant> participants = new ArrayList<>();
@@ -251,5 +259,13 @@ public class Meeting extends AuditableEntity {
 
     public String getActivityDescription() {
         return activityDescription;
+    }
+
+    public JsonNode getAttachments() {
+        return attachments;
+    }
+
+    public void setAttachments(JsonNode attachments) {
+        this.attachments = attachments;
     }
 }
