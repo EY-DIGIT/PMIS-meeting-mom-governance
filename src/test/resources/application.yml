@@ -1,6 +1,8 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:uidai_mom;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    # INIT creates the 'meetings' schema so the shared hibernate.default_schema
+    # (set in application.properties) resolves under H2 too.
+    url: jdbc:h2:mem:uidai_mom;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;INIT=CREATE SCHEMA IF NOT EXISTS meetings
     username: sa
     password: ""
     driver-class-name: org.h2.Driver

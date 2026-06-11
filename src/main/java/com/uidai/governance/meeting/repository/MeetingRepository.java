@@ -13,7 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 public interface MeetingRepository extends JpaRepository<Meeting, UUID>,
         JpaSpecificationExecutor<Meeting> {
 
-    /** Next value of the meeting-code sequence, used to build codes like {@code MEET.<n>}. */
+    /** Next value of the meeting-code sequence, used to build codes like {@code M<n>}. */
     @Query(value = "SELECT nextval('meeting_code_seq')", nativeQuery = true)
     long nextMeetingCodeSeq();
 }

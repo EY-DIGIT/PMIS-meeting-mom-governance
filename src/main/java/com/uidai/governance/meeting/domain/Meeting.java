@@ -40,7 +40,7 @@ public class Meeting extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    /** Human-readable code (MEET.1, MEET.2, ...), assigned at creation. */
+    /** Human-readable code (M1, M2, ...), assigned at creation. */
     @Column(name = "meeting_code", length = 30)
     private String meetingCode;
 

@@ -76,7 +76,7 @@ public class MeetingService {
     public MeetingResponse create(CreateMeetingRequest request) {
         Meeting meeting = new Meeting(request.title(), request.meetingDate(), request.startTime(),
                 request.endTime(), request.description(), request.meetingLink(), request.projectId());
-        meeting.setMeetingCode("MEET." + meetingRepository.nextMeetingCodeSeq());
+        meeting.setMeetingCode("M" + meetingRepository.nextMeetingCodeSeq());
         applyAttendees(meeting, request.attendees(), request.externalAttendees());
         ProjectDto project = resolveProject(meeting.getProjectId());
         applyProjectInfo(meeting, project);
