@@ -60,18 +60,26 @@ public class MeetingService {
     private final UserServiceClient userServiceClient;
     private final ActivityServiceClient activityServiceClient;
     private final AuditLogService auditLogService;
+    private final MeetingNotificationService meetingNotificationService;
 
     public MeetingService(MeetingRepository meetingRepository,
                           UserServiceClient userServiceClient,
                           ActivityServiceClient activityServiceClient,
-                          AuditLogService auditLogService) {
+                          AuditLogService auditLogService,
+                          MeetingNotificationService meetingNotificationService) {
         this.meetingRepository = meetingRepository;
         this.userServiceClient = userServiceClient;
         this.activityServiceClient = activityServiceClient;
         this.auditLogService = auditLogService;
+        this.meetingNotificationService = meetingNotificationService;
     }
 
-    /** Records a meeting (MEET-FR-01.1) and creates its linked project activity. */
+    /**
+     * Records a meeting (MEET-FR-01.1) and creates its linked project activity.
+     * All attendees are then emailed the invite (including the joining link) at
+     * the addresses supplied on the request; a notification failure never fails
+     * the creation.
+     */
     @Transactional
     public MeetingResponse create(CreateMeetingRequest request) {
         Meeting meeting = new Meeting(request.title(), request.meetingDate(), request.startTime(),
@@ -85,6 +93,7 @@ public class MeetingService {
         Meeting saved = meetingRepository.save(meeting);
         auditLogService.record(AuditAction.MEETING_CREATED, ENTITY, saved.getId(),
                 "Meeting '%s' created (project=%s)".formatted(saved.getTitle(), saved.getProjectId()));
+        meetingNotificationService.notifyMeetingCreated(saved);
         return MeetingResponse.from(saved);
     }
 
@@ -314,11 +323,14 @@ public class MeetingService {
         validateInternalAttendees(internal);
 
         for (ParticipantDto p : internal) {
-            meeting.addParticipant(new MeetingParticipant(meeting, p.userId(), p.participantRole(),
-                    p.mandatory(), false, p.isPresent()));
+            meeting.addParticipant(new MeetingParticipant(meeting, p.userId(), p.email(), p.roleName(),
+                    p.participantRole(), p.mandatory(), false, p.isPresent()));
         }
         for (ExternalAttendeeDto e : external) {
-            meeting.addParticipant(new MeetingParticipant(meeting, e.email(), null, false, true, e.isPresent()));
+            // External guests are keyed by their email address, which is also the
+            // address the invite is sent to.
+            meeting.addParticipant(new MeetingParticipant(meeting, e.email(), e.email(), null,
+                    null, false, true, e.isPresent()));
         }
     }
 

@@ -13,6 +13,11 @@ spring:
   flyway:
     enabled: false
 
+app:
+  notification:
+    enabled: false
+    url: http://localhost:9003/notification/email/send
+
 external:
   user-service:
     enabled: false

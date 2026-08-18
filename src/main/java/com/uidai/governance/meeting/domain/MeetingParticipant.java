@@ -33,6 +33,18 @@ public class MeetingParticipant {
     @Column(name = "user_id", nullable = false, length = 100)
     private String userId;
 
+    /**
+     * Address the meeting invite is sent to. Mandatory on the API for internal
+     * attendees; for external attendees it mirrors {@link #userId}, which already
+     * holds their email address.
+     */
+    @Column(name = "email", length = 150)
+    private String email;
+
+    /** Role name of the attendee (optional, not validated against the User service). */
+    @Column(name = "role_name", length = 150)
+    private String roleName;
+
     /** Role captured at the time of the meeting (e.g. UIDAI, PMC, MSP, Chair). */
     @Column(name = "participant_role", length = 100)
     private String participantRole;
@@ -51,10 +63,13 @@ public class MeetingParticipant {
     protected MeetingParticipant() {
     }
 
-    public MeetingParticipant(Meeting meeting, String userId, String participantRole,
-                              boolean mandatory, boolean external, boolean present) {
+    public MeetingParticipant(Meeting meeting, String userId, String email, String roleName,
+                              String participantRole, boolean mandatory, boolean external,
+                              boolean present) {
         this.meeting = meeting;
         this.userId = userId;
+        this.email = email;
+        this.roleName = roleName;
         this.participantRole = participantRole;
         this.mandatory = mandatory;
         this.external = external;
@@ -75,6 +90,14 @@ public class MeetingParticipant {
 
     public String getUserId() {
         return userId;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getRoleName() {
+        return roleName;
     }
 
     public String getParticipantRole() {

@@ -25,11 +25,16 @@ public class RestClientConfig {
 
     public static final String USER_CLIENT = "userRestClient";
     public static final String ACTIVITY_CLIENT = "activityRestClient";
+    // Distinct from the NotificationRestClient component's own bean name.
+    public static final String NOTIFICATION_CLIENT = "notificationApiRestClient";
 
     private final ExternalApiProperties properties;
+    private final NotificationProperties notificationProperties;
 
-    public RestClientConfig(ExternalApiProperties properties) {
+    public RestClientConfig(ExternalApiProperties properties,
+                            NotificationProperties notificationProperties) {
         this.properties = properties;
+        this.notificationProperties = notificationProperties;
     }
 
     @Bean(USER_CLIENT)
@@ -40,6 +45,36 @@ public class RestClientConfig {
     @Bean(ACTIVITY_CLIENT)
     public RestClient activityRestClient() {
         return build(properties.activityService());
+    }
+
+    /**
+     * Client for the external notification API. It is configured with an absolute
+     * URL rather than a base URL, so no {@code baseUrl} is set here — callers pass
+     * the full {@code app.notification.url}. Authentication uses the configured
+     * service token when present, falling back to the caller's inbound bearer
+     * token when {@code app.notification.auth-token} is blank.
+     */
+    @Bean(NOTIFICATION_CLIENT)
+    public RestClient notificationApiRestClient() {
+        ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
+                .withConnectTimeout(Duration.ofMillis(notificationProperties.connectTimeoutMs()))
+                .withReadTimeout(Duration.ofMillis(notificationProperties.readTimeoutMs()));
+        return RestClient.builder()
+                .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings))
+                .requestInitializer(notificationAuth())
+                .build();
+    }
+
+    private ClientHttpRequestInitializer notificationAuth() {
+        ClientHttpRequestInitializer fallback = bearerTokenPropagation();
+        return request -> {
+            if (notificationProperties.hasAuthToken()) {
+                request.getHeaders().set(HttpHeaders.AUTHORIZATION,
+                        notificationProperties.authorizationHeader());
+                return;
+            }
+            fallback.initialize(request);
+        };
     }
 
     private RestClient build(ExternalApiProperties.ServiceConfig cfg) {
