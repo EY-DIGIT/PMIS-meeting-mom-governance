@@ -65,11 +65,11 @@ public class NotificationRestClient implements NotificationClient {
             // Serialize up-front so the exact byte count can be declared: see the
             // class javadoc on why a chunked body is not acceptable here.
             byte[] payload = objectMapper.writeValueAsBytes(request);
+            
             restClient.post()
                     .uri(properties.url())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .contentLength(payload.length)
                     .body(payload)
                     .retrieve()
                     .toBodilessEntity();

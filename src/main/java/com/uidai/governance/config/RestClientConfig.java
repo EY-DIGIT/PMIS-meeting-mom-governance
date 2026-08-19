@@ -60,7 +60,7 @@ public class RestClientConfig {
                 .withConnectTimeout(Duration.ofMillis(notificationProperties.connectTimeoutMs()))
                 .withReadTimeout(Duration.ofMillis(notificationProperties.readTimeoutMs()));
         return RestClient.builder()
-                .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings))
+                .requestFactory(ClientHttpRequestFactoryBuilder.simple().build(settings))
                 .requestInitializer(notificationAuth())
                 .build();
     }
