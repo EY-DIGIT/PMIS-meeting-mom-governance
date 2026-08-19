@@ -1,5 +1,6 @@
 package com.uidai.governance.external.notification;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.uidai.governance.common.logging.JsonLogFormatter;
 import com.uidai.governance.config.NotificationProperties;
 import com.uidai.governance.config.RestClientConfig;
@@ -20,6 +21,13 @@ import org.springframework.web.client.RestClient;
  * response) is logged and swallowed so that notifications can never roll back or
  * fail the business operation that triggered them. When
  * {@code app.notification.enabled=false} the call short-circuits.</p>
+ *
+ * <p>The payload is serialized here and sent as a byte array with an explicit
+ * {@code Content-Length}. This matters: Spring's request factories stream the
+ * body and fall back to {@code Transfer-Encoding: chunked} when the length is
+ * unknown, and the notification service rejects chunked requests outright with
+ * {@code 400 "Invalid HTTP request received."} (and, before that, reads an empty
+ * body and reports the payload as missing).</p>
  */
 @Component
 public class NotificationRestClient implements NotificationClient {
@@ -29,13 +37,16 @@ public class NotificationRestClient implements NotificationClient {
     private final RestClient restClient;
     private final NotificationProperties properties;
     private final JsonLogFormatter jsonLog;
+    private final ObjectMapper objectMapper;
 
     public NotificationRestClient(@Qualifier(RestClientConfig.NOTIFICATION_CLIENT) RestClient restClient,
                                   NotificationProperties properties,
-                                  JsonLogFormatter jsonLog) {
+                                  JsonLogFormatter jsonLog,
+                                  ObjectMapper objectMapper) {
         this.restClient = restClient;
         this.properties = properties;
         this.jsonLog = jsonLog;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -51,11 +62,15 @@ public class NotificationRestClient implements NotificationClient {
         log.info("Calling Notification API: POST {} request={}",
                 properties.url(), jsonLog.toJson(request));
         try {
+            // Serialize up-front so the exact byte count can be declared: see the
+            // class javadoc on why a chunked body is not acceptable here.
+            byte[] payload = objectMapper.writeValueAsBytes(request);
             restClient.post()
                     .uri(properties.url())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .body(request)
+                    .contentLength(payload.length)
+                    .body(payload)
                     .retrieve()
                     .toBodilessEntity();
             log.info("Notification email accepted for {} recipient(s)", request.to().size());
