@@ -1,6 +1,6 @@
 package com.uidai.governance.external.notification.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 /**
@@ -8,21 +8,32 @@ import java.util.List;
  * ({@code POST /notification/email/send}).
  *
  * <p>One request carries every recipient of a single mail: all meeting attendees
- * are sent in {@code to}.</p>
+ * are sent in {@code to}. The service requires all four fields; {@code is_html}
+ * in particular is mandatory and the request is rejected with HTTP 422 without
+ * it.</p>
  *
- * <p><strong>TODO (awaiting API signature):</strong> the field names below are
- * the assumed contract of the notification service. If the service expects
- * different keys (e.g. {@code recipients} / {@code message} / {@code html_body}),
- * rename them here — this record is the only place they are declared.</p>
+ * <pre>
+ * {
+ *   "to": ["someone@in.ey.com"],
+ *   "subject": "Welcome to PMIS",
+ *   "body": "&lt;h1&gt;Hello&lt;/h1&gt;",
+ *   "is_html": true
+ * }
+ * </pre>
  *
  * @param to      recipient email addresses
  * @param subject mail subject line
- * @param body    mail body (HTML)
+ * @param body    mail body
+ * @param isHtml  whether {@code body} is HTML (sent as {@code is_html})
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public record EmailNotificationRequest(
         List<String> to,
         String subject,
-        String body
+        String body,
+        @JsonProperty("is_html") boolean isHtml
 ) {
+    /** An HTML-bodied mail, which is what this module always sends. */
+    public static EmailNotificationRequest html(List<String> to, String subject, String body) {
+        return new EmailNotificationRequest(to, subject, body, true);
+    }
 }

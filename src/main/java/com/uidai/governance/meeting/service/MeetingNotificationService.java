@@ -75,7 +75,7 @@ public class MeetingNotificationService {
                 log.info("No attendee email addresses on meeting {} - nothing to notify", meeting.getId());
                 return;
             }
-            notificationClient.sendEmail(new EmailNotificationRequest(
+            notificationClient.sendEmail(EmailNotificationRequest.html(
                     recipients, buildSubject(meeting), buildBody(meeting)));
         } catch (Exception ex) {
             // Best-effort: the meeting is already recorded, so a notification
